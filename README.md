@@ -1,7 +1,6 @@
-# Keras RetinaNet [![Build Status](https://travis-ci.org/fizyr/keras-retinanet.svg?branch=master)](https://travis-ci.org/fizyr/keras-retinanet) [![DOI](https://zenodo.org/badge/100249425.svg)](https://zenodo.org/badge/latestdoi/100249425)
+This version of RetinaNet is inspired by the one of [fizyr's github](https://github.com/fizyr/keras-retinanet) and has been modified to be trained on polarimetric images. 
 
-Keras implementation of RetinaNet object detection as described in [Focal Loss for Dense Object Detection](https://arxiv.org/abs/1708.02002)
-inspired by Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaiming He and Piotr Dollár.
+The installation steps are the same than fizyr's github, and you can refer to their [README](https://github.com/fizyr/keras-retinanet/blob/master/README.md) for training and testing on other datasets.
 
 ## Installation
 
@@ -45,7 +44,7 @@ Most scripts (like `retinanet-evaluate`) also support converting on the fly, usi
 
 
 ## Training
-`keras-retinanet` can be trained using [this](https://github.com/fizyr/keras-retinanet/blob/master/keras_retinanet/bin/train.py) script.
+`keras-retinanet` can be trained using [this](https://github.com/RachelBlin/keras-retinanet/blob/master/keras_retinanet/bin/train.py) script.
 Note that the train script uses relative imports since it is inside the `keras_retinanet` package.
 If you want to adjust the script for your own use outside of this repository,
 you will need to switch it to use absolute imports.
@@ -71,143 +70,6 @@ For evaluatiing on [Polar dataset](http://pagesperso.litislab.fr/rblin/databases
 ```shell
 # Running directly from the repository:
 python keras_retinanet/bin/evaluate.py pascal /path/to/dataset/main/folder/ /relative/path/to/the/test/folder/from/dataset/repository /relative/path/to/the/test/labels/folder/from/dataset/repository /path/to/weights  (--convert-model if needed)
-```
-
-For training on [MS COCO](http://cocodataset.org/#home), run:
-```shell
-# Running directly from the repository:
-keras_retinanet/bin/train.py coco /path/to/MS/COCO
-
-# Using the installed script:
-retinanet-train coco /path/to/MS/COCO
-```
-
-The pretrained MS COCO model can be downloaded [here](https://github.com/fizyr/keras-retinanet/releases). Results using the `cocoapi` are shown below (note: according to the paper, this configuration should achieve a mAP of 0.357).
-
-```
- Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.350
- Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.537
- Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.374
- Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.191
- Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.383
- Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.472
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.306
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.491
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.533
- Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.345
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.577
- Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.681
-```
-
-For training on Open Images Dataset [OID](https://storage.googleapis.com/openimages/web/index.html)
-or taking place to the [OID challenges](https://storage.googleapis.com/openimages/web/challenge.html), run:
-```shell
-# Running directly from the repository:
-keras_retinanet/bin/train.py oid /path/to/OID
-
-# Using the installed script:
-retinanet-train oid /path/to/OID
-
-# You can also specify a list of labels if you want to train on a subset
-# by adding the argument 'labels_filter':
-keras_retinanet/bin/train.py oid /path/to/OID --labels_filter=Helmet,Tree
-
-# You can also specify a parent label if you want to train on a branch
-# from the semantic hierarchical tree (i.e a parent and all children)
-(https://storage.googleapis.com/openimages/challenge_2018/bbox_labels_500_hierarchy_visualizer/circle.html)
-# by adding the argument 'parent-label':
-keras_retinanet/bin/train.py oid /path/to/OID --parent-label=Boat
-```
-
-
-For training on [KITTI](http://www.cvlibs.net/datasets/kitti/eval_object.php), run:
-```shell
-# Running directly from the repository:
-keras_retinanet/bin/train.py kitti /path/to/KITTI
-
-# Using the installed script:
-retinanet-train kitti /path/to/KITTI
-
-If you want to prepare the dataset you can use the following script:
-https://github.com/NVIDIA/DIGITS/blob/master/examples/object-detection/prepare_kitti_data.py
-```
-
-
-For training on a [custom dataset], a CSV file can be used as a way to pass the data.
-See below for more details on the format of these CSV files.
-To train using your CSV, run:
-```shell
-# Running directly from the repository:
-keras_retinanet/bin/train.py csv /path/to/csv/file/containing/annotations /path/to/csv/file/containing/classes
-
-# Using the installed script:
-retinanet-train csv /path/to/csv/file/containing/annotations /path/to/csv/file/containing/classes
-```
-
-In general, the steps to train on your own datasets are:
-1) Create a model by calling for instance `keras_retinanet.models.backbone('resnet50').retinanet(num_classes=80)` and compile it.
-   Empirically, the following compile arguments have been found to work well:
-```python
-model.compile(
-    loss={
-        'regression'    : keras_retinanet.losses.smooth_l1(),
-        'classification': keras_retinanet.losses.focal()
-    },
-    optimizer=keras.optimizers.adam(lr=1e-5, clipnorm=0.001)
-)
-```
-2) Create generators for training and testing data (an example is show in [`keras_retinanet.preprocessing.pascal_voc.PascalVocGenerator`](https://github.com/fizyr/keras-retinanet/blob/master/keras_retinanet/preprocessing/pascal_voc.py)).
-3) Use `model.fit_generator` to start training.
-
-## CSV datasets
-The `CSVGenerator` provides an easy way to define your own datasets.
-It uses two CSV files: one file containing annotations and one file containing a class name to ID mapping.
-
-### Annotations format
-The CSV file with annotations should contain one annotation per line.
-Images with multiple bounding boxes should use one row per bounding box.
-Note that indexing for pixel values starts at 0.
-The expected format of each line is:
-```
-path/to/image.jpg,x1,y1,x2,y2,class_name
-```
-
-Some images may not contain any labeled objects.
-To add these images to the dataset as negative examples,
-add an annotation where `x1`, `y1`, `x2`, `y2` and `class_name` are all empty:
-```
-path/to/image.jpg,,,,,
-```
-
-A full example:
-```
-/data/imgs/img_001.jpg,837,346,981,456,cow
-/data/imgs/img_002.jpg,215,312,279,391,cat
-/data/imgs/img_002.jpg,22,5,89,84,bird
-/data/imgs/img_003.jpg,,,,,
-```
-
-This defines a dataset with 3 images.
-`img_001.jpg` contains a cow.
-`img_002.jpg` contains a cat and a bird.
-`img_003.jpg` contains no interesting objects/animals.
-
-
-### Class mapping format
-The class name to ID mapping file should contain one mapping per line.
-Each line should use the following format:
-```
-class_name,id
-```
-
-Indexing for classes starts at 0.
-Do not include a background class as it is implicit.
-
-For example:
-```
-cow,0
-cat,1
-bird,2
 ```
 
 ## Results
