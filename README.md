@@ -13,7 +13,7 @@ The installation steps are the same than fizyr's github, and you can refer to th
 4) Optionally, install `pycocotools` if you want to train / test on the MS COCO dataset by running `pip install --user git+https://github.com/cocodataset/cocoapi.git#subdirectory=PythonAPI`.
 
 ## Testing
-An example of testing the network can be seen in [this Notebook](https://github.com/delftrobotics/keras-retinanet/blob/master/examples/ResNet50RetinaNet.ipynb) or with [this code](https://github.com/RachelBlin/keras-retinanet/blob/master/python/TestRetinaNet50LRP.py)
+An example of testing the network can be seen in [this Notebook](https://github.com/RachelBlin/keras-retinanet/blob/master/examples/ResNet50RetinaNet.ipynb) or with [this code](https://github.com/RachelBlin/keras-retinanet/blob/master/python/TestRetinaNet50LRP.py)
 In general, inference of the network works as follows:
 ```python
 boxes, scores, labels = model.predict_on_batch(inputs)
@@ -26,8 +26,6 @@ Loading models can be done in the following manner:
 from keras_retinanet.models import load_model
 model = load_model('/path/to/model.h5', backbone_name='resnet50')
 ```
-
-Execution time on NVIDIA Pascal Titan X is roughly 75msec for an image of shape `1000x800x3`.
 
 ### Converting a training model to inference model
 The training procedure of `keras-retinanet` works with *training models*. These are stripped down versions compared to the *inference model* and only contains the layers necessary for training (regression and classification values). If you wish to do inference on a model (perform object detection on an image), you need to convert the trained model to an inference model. This is done as follows:
