@@ -226,15 +226,19 @@ Particularly helpful is the `--annotations` flag which displays your annotations
 
 ## Results
 
-### MS COCO
+### (I0, I45, I90)
+
+### (S0, S1, S2)
+
+### (I0, AOP, DOP)
 
 ## Status
 Example output images using `keras-retinanet` are shown below.
 
 <p align="center">
-  <img src="https://github.com/delftrobotics/keras-retinanet/blob/master/images/coco1.png" alt="Example result of RetinaNet on MS COCO"/>
-  <img src="https://github.com/delftrobotics/keras-retinanet/blob/master/images/coco2.png" alt="Example result of RetinaNet on MS COCO"/>
-  <img src="https://github.com/delftrobotics/keras-retinanet/blob/master/images/coco3.png" alt="Example result of RetinaNet on MS COCO"/>
+  <img src="https://github.com/delftrobotics/keras-retinanet/blob/master/images/coco1.png" alt="Example result of RetinaNet on (I0, I45, I90)"/>
+  <img src="https://github.com/delftrobotics/keras-retinanet/blob/master/images/coco2.png" alt="Example result of RetinaNet on (S0, S1, S2)"/>
+  <img src="https://github.com/delftrobotics/keras-retinanet/blob/master/images/coco3.png" alt="Example result of RetinaNet on (I0, AOP, DOP)"/>
 </p>
 
 ### Projects using keras-retinanet
