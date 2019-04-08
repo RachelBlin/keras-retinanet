@@ -1,7 +1,7 @@
 # Keras RetinaNet [![Build Status](https://travis-ci.org/fizyr/keras-retinanet.svg?branch=master)](https://travis-ci.org/fizyr/keras-retinanet) [![DOI](https://zenodo.org/badge/100249425.svg)](https://zenodo.org/badge/latestdoi/100249425)
 
 Keras implementation of RetinaNet object detection as described in [Focal Loss for Dense Object Detection](https://arxiv.org/abs/1708.02002)
-by Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaiming He and Piotr Dollár.
+inspired by Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaiming He and Piotr Dollár.
 
 ## Installation
 
@@ -14,7 +14,7 @@ by Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaiming He and Piotr Dollár.
 4) Optionally, install `pycocotools` if you want to train / test on the MS COCO dataset by running `pip install --user git+https://github.com/cocodataset/cocoapi.git#subdirectory=PythonAPI`.
 
 ## Testing
-An example of testing the network can be seen in [this Notebook](https://github.com/delftrobotics/keras-retinanet/blob/master/examples/ResNet50RetinaNet.ipynb).
+An example of testing the network can be seen in [this Notebook](https://github.com/delftrobotics/keras-retinanet/blob/master/examples/ResNet50RetinaNet.ipynb) or with [this code](https://github.com/RachelBlin/keras-retinanet/blob/master/python/TestRetinaNet50LRP.py)
 In general, inference of the network works as follows:
 ```python
 boxes, scores, labels = model.predict_on_batch(inputs)
@@ -60,6 +60,19 @@ The default backbone is `resnet50`. You can change this using the `--backbone=xx
 Trained models can't be used directly for inference. To convert a trained model to an inference model, check [here](https://github.com/fizyr/keras-retinanet#converting-a-training-model-to-inference-model).
 
 ### Usage
+
+For training on [Polar dataset](http://pagesperso.litislab.fr/rblin/databases/)
+```shell
+# Running directly from the repository:
+python keras_retinanet/bin/train.py --epochs number_of_epoch --batch-size batch_size --steps number_of_steps_per_epoch --weights /path/to/weights/for/fine/tuning --snapshot-path /path/to/save/snapshots pascal /path/to/dataset/main/folder/ /relative/path/to/the/train/folder/from/dataset/repository /relative/path/to/the/validation/folder/from/dataset/repository
+```
+
+For evaluatiing on [Polar dataset](http://pagesperso.litislab.fr/rblin/databases/)
+```shell
+# Running directly from the repository:
+python keras_retinanet/bin/evaluate.py pascal /path/to/dataset/main/folder/ /relative/path/to/the/test/folder/from/dataset/repository /relative/path/to/the/test/labels/folder/from/dataset/repository /path/to/weights  (--convert-model if needed)
+```
+
 For training on [Pascal VOC](http://host.robots.ox.ac.uk/pascal/VOC/), run:
 ```shell
 # Running directly from the repository:
