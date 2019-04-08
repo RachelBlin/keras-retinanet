@@ -73,15 +73,6 @@ For evaluatiing on [Polar dataset](http://pagesperso.litislab.fr/rblin/databases
 python keras_retinanet/bin/evaluate.py pascal /path/to/dataset/main/folder/ /relative/path/to/the/test/folder/from/dataset/repository /relative/path/to/the/test/labels/folder/from/dataset/repository /path/to/weights  (--convert-model if needed)
 ```
 
-For training on [Pascal VOC](http://host.robots.ox.ac.uk/pascal/VOC/), run:
-```shell
-# Running directly from the repository:
-keras_retinanet/bin/train.py pascal /path/to/VOCdevkit/VOC2007
-
-# Using the installed script:
-retinanet-train pascal /path/to/VOCdevkit/VOC2007
-```
-
 For training on [MS COCO](http://cocodataset.org/#home), run:
 ```shell
 # Running directly from the repository:
