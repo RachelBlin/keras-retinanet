@@ -226,19 +226,25 @@ Particularly helpful is the `--annotations` flag which displays your annotations
 
 ## Results
 
+Example output images using `keras-retinanet` are shown below.
+
 ### (I0, I45, I90)
+
+<p align="center">
+  <img src="https://github.com/RachelBlin/keras-retinanet/blob/master/examples/detection_I.png" alt="Example result of RetinaNet on (I0, I45, I90)"/>
+</p>
 
 ### (S0, S1, S2)
 
+<p align="center">
+     <img src="https://github.com/RachelBlin/keras-retinanet/blob/master/examples/detection_Stokes.png" alt="Example result of RetinaNet on (S0, S1, S2)"/>
+</p>  
+
+
 ### (I0, AOP, DOP)
 
-## Status
-Example output images using `keras-retinanet` are shown below.
-
 <p align="center">
-  <img src="https://github.com/delftrobotics/keras-retinanet/blob/master/images/coco1.png" alt="Example result of RetinaNet on (I0, I45, I90)"/>
-  <img src="https://github.com/delftrobotics/keras-retinanet/blob/master/images/coco2.png" alt="Example result of RetinaNet on (S0, S1, S2)"/>
-  <img src="https://github.com/delftrobotics/keras-retinanet/blob/master/images/coco3.png" alt="Example result of RetinaNet on (I0, AOP, DOP)"/>
+  <img src="https://github.com/RachelBlin/keras-retinanet/blob/master/examples/detection_Params.png" alt="Example result of RetinaNet on (I0, AOP, DOP)"/>
 </p>
 
 ### Projects using keras-retinanet
