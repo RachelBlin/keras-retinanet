@@ -31,7 +31,6 @@ if __name__ == "__main__" and __package__ is None:
 from .. import models
 from ..preprocessing.csv_generator import CSVGenerator
 from ..preprocessing.pascal_voc import PascalVocGenerator
-from ..utils.config import read_config_file, parse_anchor_parameters
 from ..utils.eval import evaluate
 from ..utils.keras_version import check_keras_version
 
@@ -55,24 +54,23 @@ def create_generator(args):
             args.coco_path,
             'val2017',
             image_min_side=args.image_min_side,
-            image_max_side=args.image_max_side,
-            config=args.config
+            image_max_side=args.image_max_side
         )
     elif args.dataset_type == 'pascal':
         validation_generator = PascalVocGenerator(
             args.pascal_path,
+            args.test_path,
+            args.labels_test_dir,
             'test',
             image_min_side=args.image_min_side,
-            image_max_side=args.image_max_side,
-            config=args.config
+            image_max_side=args.image_max_side
         )
     elif args.dataset_type == 'csv':
         validation_generator = CSVGenerator(
             args.annotations,
             args.classes,
             image_min_side=args.image_min_side,
-            image_max_side=args.image_max_side,
-            config=args.config
+            image_max_side=args.image_max_side
         )
     else:
         raise ValueError('Invalid data type received: {}'.format(args.dataset_type))
@@ -92,22 +90,24 @@ def parse_args(args):
 
     pascal_parser = subparsers.add_parser('pascal')
     pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
+    pascal_parser.add_argument('test_path', help='Path to test dataset')
+    pascal_parser.add_argument('labels_test_dir', help='Path to labels dataset')
 
     csv_parser = subparsers.add_parser('csv')
     csv_parser.add_argument('annotations', help='Path to CSV file containing annotations for evaluation.')
     csv_parser.add_argument('classes', help='Path to a CSV file containing class label mapping.')
 
-    parser.add_argument('model',              help='Path to RetinaNet model.')
-    parser.add_argument('--convert-model',    help='Convert the model to an inference model (ie. the input is a training model).', action='store_true')
-    parser.add_argument('--backbone',         help='The backbone of the model.', default='resnet50')
-    parser.add_argument('--gpu',              help='Id of the GPU to use (as reported by nvidia-smi).')
-    parser.add_argument('--score-threshold',  help='Threshold on score to filter detections with (defaults to 0.05).', default=0.05, type=float)
-    parser.add_argument('--iou-threshold',    help='IoU Threshold to count for a positive detection (defaults to 0.5).', default=0.5, type=float)
-    parser.add_argument('--max-detections',   help='Max Detections per image (defaults to 100).', default=100, type=int)
-    parser.add_argument('--save-path',        help='Path for saving images with detections (doesn\'t work for COCO).')
-    parser.add_argument('--image-min-side',   help='Rescale the image so the smallest side is min_side.', type=int, default=800)
-    parser.add_argument('--image-max-side',   help='Rescale the image if the largest side is larger than max_side.', type=int, default=1333)
-    parser.add_argument('--config',           help='Path to a configuration parameters .ini file (only used with --convert-model).')
+    parser.add_argument('model',             help='Path to RetinaNet model.')
+    parser.add_argument('--convert-model',   help='Convert the model to an inference model (ie. the input is a training model).', action='store_true')
+    parser.add_argument('--backbone',        help='The backbone of the model.', default='resnet50')
+    parser.add_argument('--gpu',             help='Id of the GPU to use (as reported by nvidia-smi).')
+    parser.add_argument('--score-threshold', help='Threshold on score to filter detections with (defaults to 0.05).', default=0.05, type=float)
+    parser.add_argument('--iou-threshold',   help='IoU Threshold to count for a positive detection (defaults to 0.5).', default=0.5, type=float)
+    parser.add_argument('--max-detections',  help='Max Detections per image (defaults to 100).', default=100, type=int)
+    parser.add_argument('--save-path',       help='Path for saving images with detections (doesn\'t work for COCO).')
+    parser.add_argument('--image-min-side',  help='Rescale the image so the smallest side is min_side.', type=int, default=800)
+    parser.add_argument('--image-max-side',  help='Rescale the image if the largest side is larger than max_side.', type=int, default=1333)
+    parser.add_argument('--weighted-average',   help='Compute the mAP using the weighted average of precisions among classes.', action='store_true')
 
     return parser.parse_args(args)
 
@@ -130,25 +130,12 @@ def main(args=None):
     if args.save_path is not None and not os.path.exists(args.save_path):
         os.makedirs(args.save_path)
 
-    # optionally load config parameters
-    if args.config:
-        args.config = read_config_file(args.config)
-
     # create the generator
     generator = create_generator(args)
 
-    # optionally load anchor parameters
-    anchor_params = None
-    if args.config and 'anchor_parameters' in args.config:
-        anchor_params = parse_anchor_parameters(args.config)
-
     # load the model
     print('Loading model, this may take a second...')
-    model = models.load_model(args.model, backbone_name=args.backbone)
-
-    # optionally convert the model
-    if args.convert_model:
-        model = models.convert_model(model, anchor_params=anchor_params)
+    model = models.load_model(args.model, backbone_name=args.backbone, convert=args.convert_model)
 
     # print model summary
     # print(model.summary())
@@ -166,6 +153,7 @@ def main(args=None):
             max_detections=args.max_detections,
             save_path=args.save_path
         )
+        print(average_precisions)
 
         # print evaluation
         total_instances = []
@@ -180,8 +168,10 @@ def main(args=None):
             print('No test instances found.')
             return
 
-        print('mAP using the weighted average of precisions among classes: {:.4f}'.format(sum([a * b for a, b in zip(total_instances, precisions)]) / sum(total_instances)))
-        print('mAP: {:.4f}'.format(sum(precisions) / sum(x > 0 for x in total_instances)))
+        if args.weighted_average:
+            print('mAP: {:.4f}'.format(sum([a * b for a, b in zip(total_instances, precisions)]) / sum(total_instances)))
+        else:
+            print('mAP: {:.4f}'.format(sum(precisions) / sum(x > 0 for x in total_instances)))
 
 
 if __name__ == '__main__':

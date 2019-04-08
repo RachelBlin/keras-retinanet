@@ -324,16 +324,6 @@ class OpenImagesGenerator(Generator):
     def num_classes(self):
         return len(self.id_to_labels)
 
-    def has_label(self, label):
-        """ Return True if label is a known label.
-        """
-        return label in self.id_to_labels
-
-    def has_name(self, name):
-        """ Returns True if name is a known class.
-        """
-        raise NotImplementedError()
-
     def name_to_label(self, name):
         raise NotImplementedError()
 
@@ -358,7 +348,7 @@ class OpenImagesGenerator(Generator):
         labels = image_annotations['boxes']
         height, width = image_annotations['h'], image_annotations['w']
 
-        annotations = {'labels': np.empty((len(labels),)), 'bboxes': np.empty((len(labels), 4))}
+        boxes = np.zeros((len(labels), 5))
         for idx, ann in enumerate(labels):
             cls_id = ann['cls_id']
             x1 = ann['x1'] * width
@@ -366,10 +356,10 @@ class OpenImagesGenerator(Generator):
             y1 = ann['y1'] * height
             y2 = ann['y2'] * height
 
-            annotations['bboxes'][idx, 0] = x1
-            annotations['bboxes'][idx, 1] = y1
-            annotations['bboxes'][idx, 2] = x2
-            annotations['bboxes'][idx, 3] = y2
-            annotations['labels'][idx] = cls_id
+            boxes[idx, 0] = x1
+            boxes[idx, 1] = y1
+            boxes[idx, 2] = x2
+            boxes[idx, 3] = y2
+            boxes[idx, 4] = cls_id
 
-        return annotations
+        return boxes

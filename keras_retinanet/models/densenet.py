@@ -15,19 +15,14 @@ limitations under the License.
 """
 
 import keras
-from keras.applications import densenet
+from keras.applications.densenet import densenet
 from keras.utils import get_file
 
 from . import retinanet
 from . import Backbone
 from ..utils.image import preprocess_image
 
-
-allowed_backbones = {
-    'densenet121': ([6, 12, 24, 16], densenet.DenseNet121),
-    'densenet169': ([6, 12, 32, 32], densenet.DenseNet169),
-    'densenet201': ([6, 12, 48, 32], densenet.DenseNet201),
-}
+allowed_backbones = {'densenet121': [6, 12, 24, 16], 'densenet169': [6, 12, 32, 32], 'densenet201': [6, 12, 48, 32]}
 
 
 class DenseNetBackbone(Backbone):
@@ -86,20 +81,20 @@ def densenet_retinanet(num_classes, backbone='densenet121', inputs=None, modifie
     if inputs is None:
         inputs = keras.layers.Input((None, None, 3))
 
-    blocks, creator = allowed_backbones[backbone]
-    model = creator(input_tensor=inputs, include_top=False, pooling=None, weights=None)
+    blocks = allowed_backbones[backbone]
+    backbone = densenet.DenseNet(blocks=blocks, input_tensor=inputs, include_top=False, pooling=None, weights=None)
 
     # get last conv layer from the end of each dense block
-    layer_outputs = [model.get_layer(name='conv{}_block{}_concat'.format(idx + 2, block_num)).output for idx, block_num in enumerate(blocks)]
+    layer_outputs = [backbone.get_layer(name='conv{}_block{}_concat'.format(idx + 2, block_num)).output for idx, block_num in enumerate(blocks)]
 
     # create the densenet backbone
-    model = keras.models.Model(inputs=inputs, outputs=layer_outputs[1:], name=model.name)
+    backbone = keras.models.Model(inputs=inputs, outputs=layer_outputs[1:], name=backbone.name)
 
     # invoke modifier if given
     if modifier:
-        model = modifier(model)
+        backbone = modifier(backbone)
 
     # create the full model
-    model = retinanet.retinanet(inputs=inputs, num_classes=num_classes, backbone_layers=model.outputs, **kwargs)
+    model = retinanet.retinanet(inputs=inputs, num_classes=num_classes, backbone_layers=backbone.outputs, **kwargs)
 
     return model

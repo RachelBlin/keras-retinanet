@@ -32,11 +32,9 @@ from ..preprocessing.pascal_voc import PascalVocGenerator
 from ..preprocessing.csv_generator import CSVGenerator
 from ..preprocessing.kitti import KittiGenerator
 from ..preprocessing.open_images import OpenImagesGenerator
-from ..utils.keras_version import check_keras_version
 from ..utils.transform import random_transform_generator
 from ..utils.visualization import draw_annotations, draw_boxes
-from ..utils.anchors import anchors_for_shape, compute_gt_annotations
-from ..utils.config import read_config_file, parse_anchor_parameters
+from ..utils.anchors import anchors_for_shape
 
 
 def create_generator(args):
@@ -68,8 +66,7 @@ def create_generator(args):
             args.coco_set,
             transform_generator=transform_generator,
             image_min_side=args.image_min_side,
-            image_max_side=args.image_max_side,
-            config=args.config
+            image_max_side=args.image_max_side
         )
     elif args.dataset_type == 'pascal':
         generator = PascalVocGenerator(
@@ -77,8 +74,7 @@ def create_generator(args):
             args.pascal_set,
             transform_generator=transform_generator,
             image_min_side=args.image_min_side,
-            image_max_side=args.image_max_side,
-            config=args.config
+            image_max_side=args.image_max_side
         )
     elif args.dataset_type == 'csv':
         generator = CSVGenerator(
@@ -86,8 +82,7 @@ def create_generator(args):
             args.classes,
             transform_generator=transform_generator,
             image_min_side=args.image_min_side,
-            image_max_side=args.image_max_side,
-            config=args.config
+            image_max_side=args.image_max_side
         )
     elif args.dataset_type == 'oid':
         generator = OpenImagesGenerator(
@@ -99,8 +94,7 @@ def create_generator(args):
             annotation_cache_dir=args.annotation_cache_dir,
             transform_generator=transform_generator,
             image_min_side=args.image_min_side,
-            image_max_side=args.image_max_side,
-            config=args.config
+            image_max_side=args.image_max_side
         )
     elif args.dataset_type == 'kitti':
         generator = KittiGenerator(
@@ -108,8 +102,7 @@ def create_generator(args):
             subset=args.subset,
             transform_generator=transform_generator,
             image_min_side=args.image_min_side,
-            image_max_side=args.image_max_side,
-            config=args.config
+            image_max_side=args.image_max_side
         )
     else:
         raise ValueError('Invalid data type received: {}'.format(args.dataset_type))
@@ -158,12 +151,11 @@ def parse_args(args):
     parser.add_argument('--random-transform', help='Randomly transform image and annotations.', action='store_true')
     parser.add_argument('--image-min-side', help='Rescale the image so the smallest side is min_side.', type=int, default=800)
     parser.add_argument('--image-max-side', help='Rescale the image if the largest side is larger than max_side.', type=int, default=1333)
-    parser.add_argument('--config', help='Path to a configuration parameters .ini file.')
 
     return parser.parse_args(args)
 
 
-def run(generator, args, anchor_params):
+def run(generator, args):
     """ Main loop.
 
     Args
@@ -175,31 +167,33 @@ def run(generator, args, anchor_params):
         # load the data
         image       = generator.load_image(i)
         annotations = generator.load_annotations(i)
-        if len(annotations['labels']) > 0 :
-            # apply random transformations
-            if args.random_transform:
-                image, annotations = generator.random_transform_group_entry(image, annotations)
 
-            # resize the image and annotations
-            if args.resize:
-                image, image_scale = generator.resize_image(image)
-                annotations['bboxes'] *= image_scale
+        # apply random transformations
+        if args.random_transform:
+            image, annotations = generator.random_transform_group_entry(image, annotations)
 
-            anchors = anchors_for_shape(image.shape, anchor_params=anchor_params)
-            positive_indices, _, max_indices = compute_gt_annotations(anchors, annotations['bboxes'])
+        # resize the image and annotations
+        if args.resize:
+            image, image_scale = generator.resize_image(image)
+            annotations[:, :4] *= image_scale
 
-            # draw anchors on the image
-            if args.anchors:
-                draw_boxes(image, anchors[positive_indices], (255, 255, 0), thickness=1)
+        anchors = anchors_for_shape(image.shape)
 
-            # draw annotations on the image
-            if args.annotations:
-                # draw annotations in red
-                draw_annotations(image, annotations, color=(0, 0, 255), label_to_name=generator.label_to_name)
+        labels_batch, regression_batch, boxes_batch = generator.compute_anchor_targets(anchors, [image], [annotations], generator.num_classes())
+        anchor_states                               = labels_batch[0, :, -1]
 
-                # draw regressed anchors in green to override most red annotations
-                # result is that annotations without anchors are red, with anchors are green
-                draw_boxes(image, annotations['bboxes'][max_indices[positive_indices], :], (0, 255, 0))
+        # draw anchors on the image
+        if args.anchors:
+            draw_boxes(image, anchors[anchor_states == 1], (255, 255, 0), thickness=1)
+
+        # draw annotations on the image
+        if args.annotations:
+            # draw annotations in red
+            draw_annotations(image, annotations, color=(0, 0, 255), label_to_name=generator.label_to_name)
+
+            # draw regressed anchors in green to override most red annotations
+            # result is that annotations without anchors are red, with anchors are green
+            draw_boxes(image, boxes_batch[0, anchor_states == 1, :], (0, 255, 0))
 
         cv2.imshow('Image', image)
         if cv2.waitKey() == ord('q'):
@@ -213,29 +207,17 @@ def main(args=None):
         args = sys.argv[1:]
     args = parse_args(args)
 
-    # make sure keras is the minimum required version
-    check_keras_version()
-
     # create the generator
     generator = create_generator(args)
-
-    # optionally load config parameters
-    if args.config:
-        args.config = read_config_file(args.config)
-
-    # optionally load anchor parameters
-    anchor_params = None
-    if args.config and 'anchor_parameters' in args.config:
-        anchor_params = parse_anchor_parameters(args.config)
 
     # create the display window
     cv2.namedWindow('Image', cv2.WINDOW_NORMAL)
 
     if args.loop:
-        while run(generator, args, anchor_params=anchor_params):
+        while run(generator, args):
             pass
     else:
-        run(generator, args, anchor_params=anchor_params)
+        run(generator, args)
 
 
 if __name__ == '__main__':

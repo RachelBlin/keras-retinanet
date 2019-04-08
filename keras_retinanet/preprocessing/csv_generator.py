@@ -169,16 +169,6 @@ class CSVGenerator(Generator):
         """
         return max(self.classes.values()) + 1
 
-    def has_label(self, label):
-        """ Return True if label is a known label.
-        """
-        return label in self.labels
-
-    def has_name(self, name):
-        """ Returns True if name is a known class.
-        """
-        return name in self.classes
-
     def name_to_label(self, name):
         """ Map name to label.
         """
@@ -209,16 +199,16 @@ class CSVGenerator(Generator):
     def load_annotations(self, image_index):
         """ Load annotations for an image_index.
         """
-        path        = self.image_names[image_index]
-        annotations = {'labels': np.empty((0,)), 'bboxes': np.empty((0, 4))}
+        path   = self.image_names[image_index]
+        annots = self.image_data[path]
+        boxes  = np.zeros((len(annots), 5))
 
-        for idx, annot in enumerate(self.image_data[path]):
-            annotations['labels'] = np.concatenate((annotations['labels'], [self.name_to_label(annot['class'])]))
-            annotations['bboxes'] = np.concatenate((annotations['bboxes'], [[
-                float(annot['x1']),
-                float(annot['y1']),
-                float(annot['x2']),
-                float(annot['y2']),
-            ]]))
+        for idx, annot in enumerate(annots):
+            class_name = annot['class']
+            boxes[idx, 0] = float(annot['x1'])
+            boxes[idx, 1] = float(annot['y1'])
+            boxes[idx, 2] = float(annot['x2'])
+            boxes[idx, 3] = float(annot['y2'])
+            boxes[idx, 4] = self.name_to_label(class_name)
 
-        return annotations
+        return boxes

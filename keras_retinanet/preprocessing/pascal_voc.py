@@ -27,9 +27,9 @@ try:
 except ImportError:
     import xml.etree.ElementTree as ET
 
-voc_classes = {
+"""voc_classes = {
     'aeroplane'   : 0,
-    'bicycle'     : 1,
+    'bike'     : 1, #bicycle
     'bird'        : 2,
     'boat'        : 3,
     'bottle'      : 4,
@@ -48,7 +48,21 @@ voc_classes = {
     'sofa'        : 17,
     'train'       : 18,
     'tvmonitor'   : 19
-}
+}"""
+
+"""voc_classes = {
+    'bike': 0,
+    'car': 1,
+    'person': 2,
+    'motorbike': 3
+}"""
+
+voc_classes = {
+    'person' : 0,
+    'bike': 1,
+    'car' : 2,
+    'motorbike' : 3
+} # RGB"""
 
 
 def _findNode(parent, name, debug_name=None, parse=None):
@@ -74,10 +88,13 @@ class PascalVocGenerator(Generator):
 
     def __init__(
         self,
-        data_dir,
+        data_dir, #/home/rblin/Documents/BD_QCAV
+        train_dir,
+        labels_dir,
         set_name,
         classes=voc_classes,
-        image_extension='.jpg',
+        #image_extension='.jpg',
+        image_extension='.png',
         skip_truncated=False,
         skip_difficult=False,
         **kwargs
@@ -89,9 +106,14 @@ class PascalVocGenerator(Generator):
             csv_class_file: Path to the CSV classes file.
         """
         self.data_dir             = data_dir
+        self.train_dir            = train_dir
+        self.labels_dir           = labels_dir
         self.set_name             = set_name
         self.classes              = classes
-        self.image_names          = [l.strip().split(None, 1)[0] for l in open(os.path.join(data_dir, 'ImageSets', 'Main', set_name + '.txt')).readlines()]
+        #self.image_names          = [l.strip().split(None, 1)[0] for l in open(os.path.join(data_dir, 'ImageSets', 'Main', set_name + '.txt')).readlines()]
+        #self.image_names         = sorted(os.listdir(os.path.join(self.data_dir, 'train/PARAM_POLAR_TEMP')))
+        self.image_names = sorted(os.listdir(os.path.join(self.data_dir, self.train_dir)))
+        self.annotation_names     = sorted(os.listdir(os.path.join(self.data_dir, self.labels_dir)))
         self.image_extension      = image_extension
         self.skip_truncated       = skip_truncated
         self.skip_difficult       = skip_difficult
@@ -112,16 +134,6 @@ class PascalVocGenerator(Generator):
         """
         return len(self.classes)
 
-    def has_label(self, label):
-        """ Return True if label is a known label.
-        """
-        return label in self.labels
-
-    def has_name(self, name):
-        """ Returns True if name is a known class.
-        """
-        return name in self.classes
-
     def name_to_label(self, name):
         """ Map name to label.
         """
@@ -135,14 +147,17 @@ class PascalVocGenerator(Generator):
     def image_aspect_ratio(self, image_index):
         """ Compute the aspect ratio for an image with image_index.
         """
-        path  = os.path.join(self.data_dir, 'JPEGImages', self.image_names[image_index] + self.image_extension)
+        #path  = os.path.join(self.data_dir, 'JPEGImages', self.image_names[image_index] + self.image_extension)
+        path = os.path.join(self.data_dir, self.train_dir, self.image_names[image_index])
         image = Image.open(path)
         return float(image.width) / float(image.height)
 
     def load_image(self, image_index):
         """ Load an image at the image_index.
         """
-        path = os.path.join(self.data_dir, 'JPEGImages', self.image_names[image_index] + self.image_extension)
+        #path = os.path.join(self.data_dir, 'JPEGImages', self.image_names[image_index] + self.image_extension)
+        #path = os.path.join(self.data_dir, 'train/PARAM_POLAR_TEMP', self.image_names[image_index])
+        path = os.path.join(self.data_dir, self.train_dir, self.image_names[image_index])
         return read_image_bgr(path)
 
     def __parse_annotation(self, element):
@@ -155,24 +170,24 @@ class PascalVocGenerator(Generator):
         if class_name not in self.classes:
             raise ValueError('class name \'{}\' not found in classes: {}'.format(class_name, list(self.classes.keys())))
 
-        box = np.zeros((4,))
-        label = self.name_to_label(class_name)
+        box = np.zeros((1, 5))
+        box[0, 4] = self.name_to_label(class_name)
 
         bndbox    = _findNode(element, 'bndbox')
-        box[0] = _findNode(bndbox, 'xmin', 'bndbox.xmin', parse=float) - 1
-        box[1] = _findNode(bndbox, 'ymin', 'bndbox.ymin', parse=float) - 1
-        box[2] = _findNode(bndbox, 'xmax', 'bndbox.xmax', parse=float) - 1
-        box[3] = _findNode(bndbox, 'ymax', 'bndbox.ymax', parse=float) - 1
+        box[0, 0] = _findNode(bndbox, 'xmin', 'bndbox.xmin', parse=float) - 1
+        box[0, 1] = _findNode(bndbox, 'ymin', 'bndbox.ymin', parse=float) - 1
+        box[0, 2] = _findNode(bndbox, 'xmax', 'bndbox.xmax', parse=float) - 1
+        box[0, 3] = _findNode(bndbox, 'ymax', 'bndbox.ymax', parse=float) - 1
 
-        return truncated, difficult, box, label
+        return truncated, difficult, box
 
     def __parse_annotations(self, xml_root):
         """ Parse all annotations under the xml_root.
         """
-        annotations = {'labels': np.empty((len(xml_root.findall('object')),)), 'bboxes': np.empty((len(xml_root.findall('object')), 4))}
+        boxes = np.zeros((0, 5))
         for i, element in enumerate(xml_root.iter('object')):
             try:
-                truncated, difficult, box, label = self.__parse_annotation(element)
+                truncated, difficult, box = self.__parse_annotation(element)
             except ValueError as e:
                 raise_from(ValueError('could not parse object #{}: {}'.format(i, e)), None)
 
@@ -180,18 +195,18 @@ class PascalVocGenerator(Generator):
                 continue
             if difficult and self.skip_difficult:
                 continue
+            boxes = np.append(boxes, box, axis=0)
 
-            annotations['bboxes'][i, :] = box
-            annotations['labels'][i] = label
-
-        return annotations
+        return boxes
 
     def load_annotations(self, image_index):
         """ Load annotations for an image_index.
         """
-        filename = self.image_names[image_index] + '.xml'
+        #filename = self.image_names[image_index] + '.xml'
+        filename = self.annotation_names[image_index]
         try:
-            tree = ET.parse(os.path.join(self.data_dir, 'Annotations', filename))
+            #tree = ET.parse(os.path.join(self.data_dir, 'Annotations', filename))
+            tree = ET.parse(os.path.join(self.data_dir, self.labels_dir, filename))
             return self.__parse_annotations(tree.getroot())
         except ET.ParseError as e:
             raise_from(ValueError('invalid annotations file: {}: {}'.format(filename, e)), None)

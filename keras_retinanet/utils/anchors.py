@@ -20,36 +20,6 @@ import keras
 from ..utils.compute_overlap import compute_overlap
 
 
-class AnchorParameters:
-    """ The parameteres that define how anchors are generated.
-
-    Args
-        sizes   : List of sizes to use. Each size corresponds to one feature level.
-        strides : List of strides to use. Each stride correspond to one feature level.
-        ratios  : List of ratios to use per location in a feature map.
-        scales  : List of scales to use per location in a feature map.
-    """
-    def __init__(self, sizes, strides, ratios, scales):
-        self.sizes   = sizes
-        self.strides = strides
-        self.ratios  = ratios
-        self.scales  = scales
-
-    def num_anchors(self):
-        return len(self.ratios) * len(self.scales)
-
-
-"""
-The default anchor parameters.
-"""
-AnchorParameters.default = AnchorParameters(
-    sizes   = [32, 64, 128, 256, 512],
-    strides = [8, 16, 32, 64, 128],
-    ratios  = np.array([0.5, 1, 2], keras.backend.floatx()),
-    scales  = np.array([2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)], keras.backend.floatx()),
-)
-
-
 def anchor_targets_bbox(
     anchors,
     image_group,
@@ -75,24 +45,23 @@ def anchor_targets_bbox(
         regression_batch: batch that contains bounding-box regression targets for an image & anchor states (np.array of shape (batch_size, N, 4 + 1),
                       where N is the number of anchors for an image, the first 4 columns define regression targets for (x1, y1, x2, y2) and the
                       last column defines anchor states (-1 for ignore, 0 for bg, 1 for fg).
+        annotations_batch: annotations per anchor (np.array of shape (batch_size, N, annotations.shape[1]), where N is the number of anchors for an image)
     """
 
-    assert(len(image_group) == len(annotations_group)), "The length of the images and annotations need to be equal."
-    assert(len(annotations_group) > 0), "No data received to compute anchor targets for."
-    for annotations in annotations_group:
-        assert('bboxes' in annotations), "Annotations should contain bboxes."
-        assert('labels' in annotations), "Annotations should contain labels."
+    assert (len(image_group) == len(annotations_group)), "The length of the images and annotations need to be equal."
+    assert (len(annotations_group) > 0), "No data received to compute anchor targets for."
 
     batch_size = len(image_group)
 
     regression_batch  = np.zeros((batch_size, anchors.shape[0], 4 + 1), dtype=keras.backend.floatx())
     labels_batch      = np.zeros((batch_size, anchors.shape[0], num_classes + 1), dtype=keras.backend.floatx())
+    annotations_batch = np.zeros((batch_size, anchors.shape[0], annotations_group[0].shape[1]), dtype=keras.backend.floatx())
 
     # compute labels and regression targets
     for index, (image, annotations) in enumerate(zip(image_group, annotations_group)):
-        if annotations['bboxes'].shape[0]:
+        if annotations.shape[0]:
             # obtain indices of gt annotations with the greatest overlap
-            positive_indices, ignore_indices, argmax_overlaps_inds = compute_gt_annotations(anchors, annotations['bboxes'], negative_overlap, positive_overlap)
+            positive_indices, ignore_indices, argmax_overlaps_inds = compute_gt_annotations(anchors, annotations, negative_overlap, positive_overlap)
 
             labels_batch[index, ignore_indices, -1]       = -1
             labels_batch[index, positive_indices, -1]     = 1
@@ -100,20 +69,24 @@ def anchor_targets_bbox(
             regression_batch[index, ignore_indices, -1]   = -1
             regression_batch[index, positive_indices, -1] = 1
 
-            # compute target class labels
-            labels_batch[index, positive_indices, annotations['labels'][argmax_overlaps_inds[positive_indices]].astype(int)] = 1
+            # compute box regression targets
+            annotations = annotations[argmax_overlaps_inds]
+            annotations_batch[index, ...] = annotations
 
-            regression_batch[index, :, :-1] = bbox_transform(anchors, annotations['bboxes'][argmax_overlaps_inds, :])
+            # compute target class labels
+            labels_batch[index, positive_indices, annotations[positive_indices, 4].astype(int)] = 1
+
+            regression_batch[index, :, :-1] = bbox_transform(anchors, annotations)
 
         # ignore annotations outside of image
         if image.shape:
             anchors_centers = np.vstack([(anchors[:, 0] + anchors[:, 2]) / 2, (anchors[:, 1] + anchors[:, 3]) / 2]).T
             indices = np.logical_or(anchors_centers[:, 0] >= image.shape[1], anchors_centers[:, 1] >= image.shape[0])
 
-            labels_batch[index, indices, -1]     = -1
+            labels_batch[index, indices, -1]     = - 1
             regression_batch[index, indices, -1] = -1
 
-    return regression_batch, labels_batch
+    return labels_batch, regression_batch, annotations_batch
 
 
 def compute_gt_annotations(
@@ -201,7 +174,10 @@ def guess_shapes(image_shape, pyramid_levels):
 def anchors_for_shape(
     image_shape,
     pyramid_levels=None,
-    anchor_params=None,
+    ratios=None,
+    scales=None,
+    strides=None,
+    sizes=None,
     shapes_callback=None,
 ):
     """ Generators anchors for a given shape.
@@ -209,18 +185,25 @@ def anchors_for_shape(
     Args
         image_shape: The shape of the image.
         pyramid_levels: List of ints representing which pyramids to use (defaults to [3, 4, 5, 6, 7]).
-        anchor_params: Struct containing anchor parameters. If None, default values are used.
+        ratios: List of ratios with which anchors are generated (defaults to [0.5, 1, 2]).
+        scales: List of scales with which anchors are generated (defaults to [2^0, 2^(1/3), 2^(2/3)]).
+        strides: Stride per pyramid level, defines how the pyramids are constructed.
+        sizes: Sizes of the anchors per pyramid level.
         shapes_callback: Function to call for getting the shape of the image at different pyramid levels.
 
     Returns
         np.array of shape (N, 4) containing the (x1, y1, x2, y2) coordinates for the anchors.
     """
-
     if pyramid_levels is None:
         pyramid_levels = [3, 4, 5, 6, 7]
-
-    if anchor_params is None:
-        anchor_params = AnchorParameters.default
+    if strides is None:
+        strides = [2 ** x for x in pyramid_levels]
+    if sizes is None:
+        sizes = [2 ** (x + 2) for x in pyramid_levels]
+    if ratios is None:
+        ratios = np.array([0.5, 1, 2])
+    if scales is None:
+        scales = np.array([2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)])
 
     if shapes_callback is None:
         shapes_callback = guess_shapes
@@ -229,12 +212,8 @@ def anchors_for_shape(
     # compute anchors over all pyramid levels
     all_anchors = np.zeros((0, 4))
     for idx, p in enumerate(pyramid_levels):
-        anchors = generate_anchors(
-            base_size=anchor_params.sizes[idx],
-            ratios=anchor_params.ratios,
-            scales=anchor_params.scales
-        )
-        shifted_anchors = shift(image_shapes[idx], anchor_params.strides[idx], anchors)
+        anchors         = generate_anchors(base_size=sizes[idx], ratios=ratios, scales=scales)
+        shifted_anchors = shift(image_shapes[idx], strides[idx], anchors)
         all_anchors     = np.append(all_anchors, shifted_anchors, axis=0)
 
     return all_anchors
@@ -248,8 +227,6 @@ def shift(shape, stride, anchors):
         stride : Stride to shift the anchors with over the shape.
         anchors: The anchors to apply at each location.
     """
-
-    # create a grid starting from half stride from the top left corner
     shift_x = (np.arange(0, shape[1]) + 0.5) * stride
     shift_y = (np.arange(0, shape[0]) + 0.5) * stride
 
@@ -279,10 +256,10 @@ def generate_anchors(base_size=16, ratios=None, scales=None):
     """
 
     if ratios is None:
-        ratios = AnchorParameters.default.ratios
+        ratios = np.array([0.5, 1, 2])
 
     if scales is None:
-        scales = AnchorParameters.default.scales
+        scales = np.array([2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)])
 
     num_anchors = len(ratios) * len(scales)
 
