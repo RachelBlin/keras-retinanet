@@ -96,4 +96,4 @@ Example output images using `keras-retinanet` are shown below.
 ### Notes
 * This repository requires Keras 2.2.0 or higher.
 * This repository is [tested](https://github.com/fizyr/keras-retinanet/blob/master/.travis.yml) using OpenCV 3.4.
-* This repository is [tested](https://github.com/fizyr/keras-retinanet/blob/master/.travis.yml) using Python 2.7 and 3.6.
+* This repository is [tested](https://github.com/fizyr/keras-retinanet/blob/master/.travis.yml) using Python 3.6.
