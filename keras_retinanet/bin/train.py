@@ -361,7 +361,7 @@ def parse_args(args):
     pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
     pascal_parser.add_argument('train_path', help='Path to train directory (ie. /train/PARAM_POLAR_TEMP/RetinaNet_Stokes).')
     pascal_parser.add_argument('labels_train_dir', help='Path to labels directory')
-    pascal_parser.add_argument('test_path', help='Path to test directory (ie. /test/PARAM_POLAR/RetinaNet_Stokes).')
+    pascal_parser.add_argument('test_path', help='Path to validation directory.')
     pascal_parser.add_argument('labels_test_dir', help='Path to labels directory')
 
     kitti_parser = subparsers.add_parser('kitti')
