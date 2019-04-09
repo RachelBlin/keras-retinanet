@@ -48,21 +48,14 @@ except ImportError:
     'sofa'        : 17,
     'train'       : 18,
     'tvmonitor'   : 19
-}"""
-
-"""voc_classes = {
-    'bike': 0,
-    'car': 1,
-    'person': 2,
-    'motorbike': 3
-}"""
+}""" # Basic PASCAL VOC Classes
 
 voc_classes = {
     'person' : 0,
     'bike': 1,
     'car' : 2,
     'motorbike' : 3
-} # RGB"""
+} # Polar PASCAL VOC Classes
 
 
 def _findNode(parent, name, debug_name=None, parse=None):
