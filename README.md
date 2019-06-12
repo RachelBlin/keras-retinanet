@@ -61,13 +61,13 @@ Trained models can't be used directly for inference. To convert a trained model 
 
 The pretrained MS COCO model can be downloaded [here](https://github.com/fizyr/keras-retinanet/releases). Results using the `cocoapi` are shown below (note: according to the paper, this configuration should achieve a mAP of 0.357).
 
-For training on [Polar dataset](http://pagesperso.litislab.fr/rblin/databases/)
+To train on [Polar dataset](http://pagesperso.litislab.fr/rblin/databases/)
 ```shell
 # Running directly from the repository:
 python keras_retinanet/bin/train.py --epochs number_of_epoch --batch-size batch_size --steps number_of_steps_per_epoch --weights /path/to/weights/for/fine/tuning --snapshot-path /path/to/save/snapshots pascal /path/to/dataset/main/folder/ /relative/path/to/the/train/folder/from/dataset/repository /relative/path/to/the/validation/folder/from/dataset/repository
 ```
 
-For evaluatiing on [Polar dataset](http://pagesperso.litislab.fr/rblin/databases/)
+To evaluate on [Polar dataset](http://pagesperso.litislab.fr/rblin/databases/)
 ```shell
 # Running directly from the repository:
 python keras_retinanet/bin/evaluate.py pascal /path/to/dataset/main/folder/ /relative/path/to/the/test/folder/from/dataset/repository /relative/path/to/the/test/labels/folder/from/dataset/repository /path/to/weights  (--convert-model if needed)
