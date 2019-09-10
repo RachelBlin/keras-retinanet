@@ -255,8 +255,8 @@ def create_generators(args, preprocess_image):
 
         validation_generator = PascalVocGenerator(
             args.pascal_path,
-            args.test_path,
-            args.labels_test_dir,
+            args.val_path,
+            args.labels_val_dir,
             'test',
             **common_args
         )
@@ -361,8 +361,8 @@ def parse_args(args):
     pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
     pascal_parser.add_argument('train_path', help='Path to train directory (ie. /train/PARAM_POLAR_TEMP/RetinaNet_Stokes).')
     pascal_parser.add_argument('labels_train_dir', help='Path to labels directory')
-    pascal_parser.add_argument('test_path', help='Path to validation directory.')
-    pascal_parser.add_argument('labels_test_dir', help='Path to labels directory')
+    pascal_parser.add_argument('val_path', help='Path to validation directory.')
+    pascal_parser.add_argument('labels_val_dir', help='Path to labels directory')
 
     kitti_parser = subparsers.add_parser('kitti')
     kitti_parser.add_argument('kitti_path', help='Path to dataset directory (ie. /tmp/kitti).')

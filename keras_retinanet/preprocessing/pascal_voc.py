@@ -57,6 +57,14 @@ voc_classes = {
     'motorbike' : 3
 } # Polar PASCAL VOC Classes
 
+# PASCAL VOC Classes myria
+
+"""oc_classes = {
+    'bike': 0,
+    'car': 1,
+    'person': 2,
+    'motorbike': 3,
+}"""
 
 def _findNode(parent, name, debug_name=None, parse=None):
     if debug_name is None:
