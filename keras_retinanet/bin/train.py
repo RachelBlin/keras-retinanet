@@ -24,6 +24,7 @@ import warnings
 import keras
 import keras.preprocessing.image
 import tensorflow as tf
+import matplotlib.pyplot as plt
 
 # Allow relative imports when being executed as script.
 if __name__ == "__main__" and __package__ is None:
@@ -257,7 +258,7 @@ def create_generators(args, preprocess_image):
             args.pascal_path,
             args.val_path,
             args.labels_val_dir,
-            'test',
+            'validation',
             **common_args
         )
     elif args.dataset_type == 'csv':
@@ -468,14 +469,32 @@ def main(args=None):
     )
 
     # start training
-    training_model.fit_generator(
+    train_history = training_model.fit_generator(
         generator=train_generator,
         steps_per_epoch=args.steps,
         epochs=args.epochs,
+        validation_data=validation_generator,
+        validation_steps=714,
         verbose=1,
         callbacks=callbacks,
     )
 
+    loss = train_history.history['loss']
+    regression_loss = train_history.history['regression_loss']
+    classification_loss = train_history.history['classification_loss']
+    val_loss = train_history.history['val_loss']
+    val_regression_loss = train_history.history['val_regression_loss']
+    val_classification_loss = train_history.history['val_classification_loss']
+
+    plt.plot(loss)
+    plt.plot(regression_loss)
+    plt.plot(classification_loss)
+    plt.plot(val_loss)
+    plt.plot(val_regression_loss)
+    plt.plot(val_classification_loss)
+    plt.legend(['loss', 'regression_loss', 'classification_loss', 'val_loss', 'val_regression_loss', 'val_classification_loss'])
+    #plt.show()
+    plt.savefig("/home/rblin/Documents/losses.png")
 
 if __name__ == '__main__':
     main()
