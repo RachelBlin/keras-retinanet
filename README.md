@@ -79,24 +79,9 @@ The pretrained Polar models can be downloaded [here](https://drive.insa-rouen.fr
 
 Example output images using `keras-retinanet` are shown below.
 
-### (I0, I45, I90)
+![Results](TL.png)
 
-<p align="center">
-  <img src="https://github.com/RachelBlin/keras-retinanet/blob/master/examples/detection_I.png" alt="Example result of RetinaNet on (I0, I45, I90)"/>
-</p>
-
-### (S0, S1, S2)
-
-<p align="center">
-     <img src="https://github.com/RachelBlin/keras-retinanet/blob/master/examples/detection_Stokes.png" alt="Example result of RetinaNet on (S0, S1, S2)"/>
-</p>  
-
-
-### (I0, AOP, DOP)
-
-<p align="center">
-  <img src="https://github.com/RachelBlin/keras-retinanet/blob/master/examples/detection_Params.png" alt="Example result of RetinaNet on (I0, AOP, DOP)"/>
-</p>
+On the right results of detection on (I0, I45, I135), in the center, results of detection on (S0, S1, S2) and on the left, results of detection on (I0, AOP, DOP).
 
 ### Notes
 * This repository requires Keras 2.2.0 or higher.
