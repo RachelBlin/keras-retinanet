@@ -19,6 +19,7 @@ import keras
 import numpy as np
 import cv2
 from PIL import Image
+import imageio
 
 from .transform import change_transform_origin
 
@@ -32,6 +33,23 @@ def read_image_bgr(path):
     image = np.asarray(Image.open(path).convert('RGB'))
     return image[:, :, ::-1].copy()
 
+def read_image_fusion(path):
+    """Read every channel of a fusion image.
+
+    Args
+        path: Path to the image.
+    """
+    image = imageio.imread(path)
+    return image[:, :, ::-1].copy()
+
+def read_matrix_as_image(path):
+    """Read every channel of a fusion npy matrix.
+
+       Args
+           path: Path to the image.
+       """
+    image = np.load(path)
+    return image[:, :, ::-1].copy()
 
 def preprocess_image(x, mode='caffe'):
     """ Preprocess an image by subtracting the ImageNet mean.

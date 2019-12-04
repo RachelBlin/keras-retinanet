@@ -15,7 +15,7 @@ limitations under the License.
 """
 
 from ..preprocessing.generator import Generator
-from ..utils.image import read_image_bgr, read_image_fusion
+from ..utils.image import read_image_bgr, read_image_fusion, read_matrix_as_image
 
 import os
 import numpy as np
@@ -81,7 +81,7 @@ def _findNode(parent, name, debug_name=None, parse=None):
     return result
 
 
-class PascalVocGenerator(Generator):
+class PascalVocGeneratorF(Generator):
     """ Generate data for a Pascal VOC dataset.
 
     See http://host.robots.ox.ac.uk/pascal/VOC/ for more information.
@@ -95,7 +95,7 @@ class PascalVocGenerator(Generator):
         set_name,
         classes=voc_classes,
         #image_extension='.jpg',
-        image_extension='.png',
+        image_extension='.npy',
         skip_truncated=False,
         skip_difficult=False,
         **kwargs
@@ -123,7 +123,7 @@ class PascalVocGenerator(Generator):
         for key, value in self.classes.items():
             self.labels[value] = key
 
-        super(PascalVocGenerator, self).__init__(**kwargs)
+        super(PascalVocGeneratorF, self).__init__(**kwargs)
 
     def size(self):
         """ Size of the dataset.
@@ -150,8 +150,10 @@ class PascalVocGenerator(Generator):
         """
         #path  = os.path.join(self.data_dir, 'JPEGImages', self.image_names[image_index] + self.image_extension)
         path = os.path.join(self.data_dir, self.train_dir, self.image_names[image_index])
-        image = Image.open(path)
-        return float(image.width) / float(image.height)
+        #image = Image.open(path)
+        image = read_matrix_as_image(path)
+        #print(image.shape)
+        return float(image.shape[0]) / float(image.shape[1])
 
     def load_image(self, image_index):
         """ Load an image at the image_index.
@@ -160,7 +162,7 @@ class PascalVocGenerator(Generator):
         #path = os.path.join(self.data_dir, 'train/PARAM_POLAR_TEMP', self.image_names[image_index])
         path = os.path.join(self.data_dir, self.train_dir, self.image_names[image_index])
         #return read_image_bgr(path)
-        return read_image_fusion(path)
+        return read_matrix_as_image(path)
 
     def __parse_annotation(self, element):
         """ Parse an annotation given an XML element.

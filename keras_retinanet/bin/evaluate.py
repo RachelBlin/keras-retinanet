@@ -153,7 +153,6 @@ def main(args=None):
             max_detections=args.max_detections,
             save_path=args.save_path
         )
-        print(average_precisions)
 
         # print evaluation
         total_instances = []

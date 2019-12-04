@@ -22,7 +22,7 @@ import keras_resnet.models
 from . import retinanet
 from . import Backbone
 from ..utils.image import preprocess_image
-
+from . import resnet_modified
 
 class ResNetBackbone(Backbone):
     """ Describes backbone information and provides utility functions.
@@ -63,7 +63,7 @@ class ResNetBackbone(Backbone):
     def validate(self):
         """ Checks whether the backbone string is correct.
         """
-        allowed_backbones = ['resnet50', 'resnet101', 'resnet152']
+        allowed_backbones = ['resnet50', 'resnet101', 'resnet152', 'resnet50-m']
         backbone = self.backbone.split('_')[0]
 
         if backbone not in allowed_backbones:
@@ -101,6 +101,12 @@ def resnet_retinanet(num_classes, backbone='resnet50', inputs=None, modifier=Non
         resnet = keras_resnet.models.ResNet101(inputs, include_top=False, freeze_bn=True)
     elif backbone == 'resnet152':
         resnet = keras_resnet.models.ResNet152(inputs, include_top=False, freeze_bn=True)
+    elif backbone == 'resnet50-m':
+        if keras.backend.image_data_format() == 'channels_first':
+            inputs = keras.layers.Input(shape=(5, None, None))
+        else:
+            inputs = keras.layers.Input(shape=(None, None, 5))
+        resnet = resnet_modified.ResNet2D50(inputs, include_top=False, freeze_bn=True)
     else:
         raise ValueError('Backbone (\'{}\') is invalid.'.format(backbone))
 
@@ -122,3 +128,6 @@ def resnet101_retinanet(num_classes, inputs=None, **kwargs):
 
 def resnet152_retinanet(num_classes, inputs=None, **kwargs):
     return resnet_retinanet(num_classes=num_classes, backbone='resnet152', inputs=inputs, **kwargs)
+
+def resnet50m_retinanet(num_classes, inputs=None, **kwargs):
+    return resnet_retinanet(num_classes=num_classes, backbone='resnet50-m', inputs=inputs, **kwargs)

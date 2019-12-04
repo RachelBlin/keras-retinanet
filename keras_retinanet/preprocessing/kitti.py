@@ -41,7 +41,7 @@ kitti_classes = {
     'Car': 2,
     'Person_sitting': 3,
     'DontCare': 4,
-    'Misc': 4,
+    'Misc': 8,
     'Van': 5,
     'Tram': 6,
     'Truck': 7

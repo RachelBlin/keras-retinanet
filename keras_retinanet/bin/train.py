@@ -43,6 +43,7 @@ from ..preprocessing.csv_generator import CSVGenerator
 from ..preprocessing.kitti import KittiGenerator
 from ..preprocessing.open_images import OpenImagesGenerator
 from ..preprocessing.pascal_voc import PascalVocGenerator
+from ..preprocessing.pascal_voc_fusion import PascalVocGeneratorF
 from ..utils.anchors import make_shapes_callback
 from ..utils.keras_version import check_keras_version
 from ..utils.model import freeze as freeze_model
@@ -261,6 +262,23 @@ def create_generators(args, preprocess_image):
             'validation',
             **common_args
         )
+    elif args.dataset_type == 'pascal-m':
+        train_generator = PascalVocGeneratorF(
+            args.pascal_path,
+            args.train_path,
+            args.labels_train_dir,
+            'trainval',
+            transform_generator=transform_generator,
+            **common_args
+        )
+
+        validation_generator = PascalVocGeneratorF(
+            args.pascal_path,
+            args.val_path,
+            args.labels_val_dir,
+            'validation',
+            **common_args
+        )
     elif args.dataset_type == 'csv':
         train_generator = CSVGenerator(
             args.annotations,
@@ -361,7 +379,15 @@ def parse_args(args):
     pascal_parser = subparsers.add_parser('pascal')
     pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
     pascal_parser.add_argument('train_path', help='Path to train directory (ie. /train/PARAM_POLAR_TEMP/RetinaNet_Stokes).')
-    pascal_parser.add_argument('labels_train_dir', help='Path to labels directory')
+    pascal_parser.add_argument('labels_train_dir', help='Pat:wqh to labels directory')
+    pascal_parser.add_argument('val_path', help='Path to validation directory.')
+    pascal_parser.add_argument('labels_val_dir', help='Path to labels directory')
+
+    pascal_parser = subparsers.add_parser('pascal-m')
+    pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
+    pascal_parser.add_argument('train_path',
+                               help='Path to train directory (ie. /train/PARAM_POLAR_TEMP/RetinaNet_Stokes).')
+    pascal_parser.add_argument('labels_train_dir', help='Pat:wqh to labels directory')
     pascal_parser.add_argument('val_path', help='Path to validation directory.')
     pascal_parser.add_argument('labels_val_dir', help='Path to labels directory')
 
@@ -435,6 +461,20 @@ def main(args=None):
         model            = models.load_model(args.snapshot, backbone_name=args.backbone)
         training_model   = model
         prediction_model = retinanet_bbox(model=model)
+
+    elif args.snapshot is None and args.backbone == 'resnet50-m':
+        weights = args.weights
+        print('****************************************************************')
+        print('Creating model from adapted resnet-50, this may take a second...')
+        print('****************************************************************')
+        model, training_model, prediction_model = create_models(
+            backbone_retinanet=backbone.retinanet,
+            num_classes=train_generator.num_classes(),
+            weights=weights,
+            multi_gpu=args.multi_gpu,
+            freeze_backbone=args.freeze_backbone
+        )
+        #model = model.load_weights(weights, by_name=True)
     else:
         weights = args.weights
         # default to imagenet if nothing else is specified
