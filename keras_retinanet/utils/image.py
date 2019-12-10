@@ -51,6 +51,21 @@ def read_matrix_as_image(path):
     image = np.load(path)
     return image[:, :, ::-1].copy()
 
+def read_rgb_and_polar_images(path_rgb, path_polar):
+    """Read an RGB image and its polarimetric equivalent.
+
+           Args
+               path_rgb: Path to the RGB image.
+               path_polar: Path to the polarimetric image.
+           """
+    image_rgb = cv2.imread(path_rgb)
+    image_rgb_rs = cv2.resize(image_rgb, dsize=(500, 500), interpolation=cv2.INTER_LANCZOS4)
+    image_polar = cv2.imread(path_polar)
+    image = np.zeros((500, 500, 6), dtype=int)
+    image[:, :, :3] = image_rgb_rs
+    image[:, :, 3:] = image_polar
+    return image[:, :, ::-1].copy()
+
 def preprocess_image(x, mode='caffe'):
     """ Preprocess an image by subtracting the ImageNet mean.
 

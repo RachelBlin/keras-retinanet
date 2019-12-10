@@ -32,6 +32,7 @@ from .. import models
 from ..preprocessing.csv_generator import CSVGenerator
 from ..preprocessing.pascal_voc import PascalVocGenerator
 from ..preprocessing.pascal_voc_fusion import PascalVocGeneratorF
+from ..preprocessing.pascal_voc_multimodal import PascalVocGeneratorM
 from ..utils.eval import evaluate
 from ..utils.keras_version import check_keras_version
 
@@ -75,6 +76,16 @@ def create_generator(args):
             image_min_side=args.image_min_side,
             image_max_side=args.image_max_side
         )
+    elif args.dataset_type == 'pascal-multi':
+        validation_generator = PascalVocGeneratorM(
+            args.pascal_path,
+            args.test_path_rgb,
+            args.test_path_polar,
+            args.labels_test_dir,
+            'test',
+            image_min_side=args.image_min_side,
+            image_max_side=args.image_max_side
+        )
     elif args.dataset_type == 'csv':
         validation_generator = CSVGenerator(
             args.annotations,
@@ -106,6 +117,12 @@ def parse_args(args):
     pascal_parser = subparsers.add_parser('pascal-m')
     pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
     pascal_parser.add_argument('test_path', help='Path to test dataset')
+    pascal_parser.add_argument('labels_test_dir', help='Path to labels dataset')
+
+    pascal_parser = subparsers.add_parser('pascal-multi')
+    pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
+    pascal_parser.add_argument('test_path_rgb', help='Path to test RGB dataset')
+    pascal_parser.add_argument('test_path_polar', help='Path to test polar dataset')
     pascal_parser.add_argument('labels_test_dir', help='Path to labels dataset')
 
     csv_parser = subparsers.add_parser('csv')

@@ -63,7 +63,7 @@ class ResNetBackbone(Backbone):
     def validate(self):
         """ Checks whether the backbone string is correct.
         """
-        allowed_backbones = ['resnet50', 'resnet101', 'resnet152', 'resnet50-m']
+        allowed_backbones = ['resnet50', 'resnet101', 'resnet152', 'resnet50-m', 'resnet50-multi']
         backbone = self.backbone.split('_')[0]
 
         if backbone not in allowed_backbones:
@@ -107,6 +107,12 @@ def resnet_retinanet(num_classes, backbone='resnet50', inputs=None, modifier=Non
         else:
             inputs = keras.layers.Input(shape=(None, None, 5))
         resnet = resnet_modified.ResNet2D50(inputs, include_top=False, freeze_bn=True)
+    elif backbone == 'resnet50-multi':
+        if keras.backend.image_data_format() == 'channels_first':
+            inputs = keras.layers.Input(shape=(6, None, None))
+        else:
+            inputs = keras.layers.Input(shape=(None, None, 6))
+        resnet = resnet_modified.ResNet2D50(inputs, include_top=False, freeze_bn=True)
     else:
         raise ValueError('Backbone (\'{}\') is invalid.'.format(backbone))
 
@@ -131,3 +137,6 @@ def resnet152_retinanet(num_classes, inputs=None, **kwargs):
 
 def resnet50m_retinanet(num_classes, inputs=None, **kwargs):
     return resnet_retinanet(num_classes=num_classes, backbone='resnet50-m', inputs=inputs, **kwargs)
+
+def resnet50_retinanet_multi(num_classes, inputs=None, **kwargs):
+    return resnet_retinanet(num_classes=num_classes, backbone='resnet50-multi', inputs=inputs, **kwargs)
