@@ -49,7 +49,9 @@ def read_matrix_as_image(path):
            path: Path to the image.
        """
     image = np.load(path)
-    return image[:, :, ::-1].copy()
+    img = np.zeros((image.shape[0], image.shape[1],6))
+    img[:,:,:5] = image
+    return img[:, :, ::-1].copy()
 
 def read_rgb_and_polar_images(path_rgb, path_polar):
     """Read an RGB image and its polarimetric equivalent.

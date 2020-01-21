@@ -159,7 +159,7 @@ keras.backend.tensorflow_backend.set_session(get_session())
 #model_path = "/home/rblin/Documents/weights/resnet50_I.h5"
 #model_path = "/media/rblin/LaCie/weights/Stokes/resnet50_pascal_35.h5"
 #model_path = "/home/rblin/Documents/keras-retinanet-master/snapshots/resnet50_kitti_01.h5"
-model_path = '/home/rblin/Documents/keras-retinanet/snapshots/resnet50_pascal_01.h5'
+model_path = '/home/rblin/Documents/weights/ITS/CosSin/resnet50_pascal_01.h5'
 
 # load retinanet model
 model = models.load_model(model_path, backbone_name='resnet50', convert=True)
@@ -181,8 +181,8 @@ labels_to_names = {0: 'person', 1: 'bike', 2: 'car', 3: 'motorbike'}
 #image = "/home/rblin/Documents/Databases/kitti/train/images/000008.png"
 #label_path = "/home/rblin/Documents/Databases/kitti/train/labels/000008.txt"
 
-image = "/home/rblin/Documents/Databases/DB_POLAR_CVPR/test_polar_sun/PARAM_POLAR/I04590/0017501.png"
-label_path = "/home/rblin/Documents/Databases/DB_POLAR_CVPR/test_polar_sun/LABELS/0017501.png"
+image = "/home/rblin/Documents/Databases/Final_DB/DB_POLAR_RGB_ITS/test_polar/PARAM_POLAR/CosSin/2.png"
+label_path = "/home/rblin/Documents/Databases/Final_DB/DB_POLAR_RGB_ITS/test_polar/LABELS_polar/2.xml"
 
 #images = os.listdir(image_path)
 detect_image(image, label_path, labels_to_names, model)

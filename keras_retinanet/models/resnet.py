@@ -42,7 +42,14 @@ class ResNetBackbone(Backbone):
         """
         resnet_filename = 'ResNet-{}-model.keras.h5'
         resnet_resource = 'https://github.com/fizyr/keras-models/releases/download/v0.0.1/{}'.format(resnet_filename)
-        depth = int(self.backbone.replace('resnet', ''))
+        #depth = int(self.backbone.replace('resnet', ''))
+        depth = self.backbone.replace('resnet', '')
+        if '50' in depth:
+            depth = int(50)
+        elif '101' in depth:
+            depth = int(101)
+        elif '152' in depth:
+            depth = int(152)
 
         filename = resnet_filename.format(depth)
         resource = resnet_resource.format(depth)
@@ -63,7 +70,7 @@ class ResNetBackbone(Backbone):
     def validate(self):
         """ Checks whether the backbone string is correct.
         """
-        allowed_backbones = ['resnet50', 'resnet101', 'resnet152', 'resnet50-m', 'resnet50-multi']
+        allowed_backbones = ['resnet50', 'resnet101', 'resnet152', 'resnet50-m', 'resnet50-multi', 'resnet101-m', 'resnet101-multi', 'resnet152-m', 'resnet152-multi']
         backbone = self.backbone.split('_')[0]
 
         if backbone not in allowed_backbones:
@@ -107,12 +114,36 @@ def resnet_retinanet(num_classes, backbone='resnet50', inputs=None, modifier=Non
         else:
             inputs = keras.layers.Input(shape=(None, None, 5))
         resnet = resnet_modified.ResNet2D50(inputs, include_top=False, freeze_bn=True)
+    elif backbone == 'resnet101-m':
+        if keras.backend.image_data_format() == 'channels_first':
+            inputs = keras.layers.Input(shape=(5, None, None))
+        else:
+            inputs = keras.layers.Input(shape=(None, None, 5))
+        resnet = resnet_modified.ResNet2D101(inputs, include_top=False, freeze_bn=True)
+    elif backbone == 'resnet152-m':
+        if keras.backend.image_data_format() == 'channels_first':
+            inputs = keras.layers.Input(shape=(5, None, None))
+        else:
+            inputs = keras.layers.Input(shape=(None, None, 5))
+        resnet = resnet_modified.ResNet2D152(inputs, include_top=False, freeze_bn=True)
     elif backbone == 'resnet50-multi':
         if keras.backend.image_data_format() == 'channels_first':
             inputs = keras.layers.Input(shape=(6, None, None))
         else:
             inputs = keras.layers.Input(shape=(None, None, 6))
         resnet = resnet_modified.ResNet2D50(inputs, include_top=False, freeze_bn=True)
+    elif backbone == 'resnet101-multi':
+        if keras.backend.image_data_format() == 'channels_first':
+            inputs = keras.layers.Input(shape=(6, None, None))
+        else:
+            inputs = keras.layers.Input(shape=(None, None, 6))
+        resnet = resnet_modified.ResNet2D101(inputs, include_top=False, freeze_bn=True)
+    elif backbone == 'resnet152-multi':
+        if keras.backend.image_data_format() == 'channels_first':
+            inputs = keras.layers.Input(shape=(6, None, None))
+        else:
+            inputs = keras.layers.Input(shape=(None, None, 6))
+        resnet = resnet_modified.ResNet2D152(inputs, include_top=False, freeze_bn=True)
     else:
         raise ValueError('Backbone (\'{}\') is invalid.'.format(backbone))
 
@@ -140,3 +171,15 @@ def resnet50m_retinanet(num_classes, inputs=None, **kwargs):
 
 def resnet50_retinanet_multi(num_classes, inputs=None, **kwargs):
     return resnet_retinanet(num_classes=num_classes, backbone='resnet50-multi', inputs=inputs, **kwargs)
+
+def resnet101m_retinanet(num_classes, inputs=None, **kwargs):
+    return resnet_retinanet(num_classes=num_classes, backbone='resnet101-m', inputs=inputs, **kwargs)
+
+def resnet101_retinanet_multi(num_classes, inputs=None, **kwargs):
+    return resnet_retinanet(num_classes=num_classes, backbone='resnet101-multi', inputs=inputs, **kwargs)
+
+def resnet152m_retinanet(num_classes, inputs=None, **kwargs):
+    return resnet_retinanet(num_classes=num_classes, backbone='resnet152-m', inputs=inputs, **kwargs)
+
+def resnet152_retinanet_multi(num_classes, inputs=None, **kwargs):
+    return resnet_retinanet(num_classes=num_classes, backbone='resnet152-multi', inputs=inputs, **kwargs)
