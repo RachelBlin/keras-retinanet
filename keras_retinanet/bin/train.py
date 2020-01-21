@@ -567,12 +567,25 @@ def main(args=None):
             multi_gpu=args.multi_gpu,
             freeze_backbone=args.freeze_backbone
         )
-        #model = model.load_weights(weights, by_name=True)
 
     elif args.snapshot is None and args.backbone == 'resnet152-multi':
         weights = args.weights
         print('****************************************************************')
         print('Creating model from resnet-152 multimodal, this may take a second...')
+        print('****************************************************************')
+        if weights is None and args.imagenet_weights:
+            weights = backbone.download_imagenet()
+        model, training_model, prediction_model = create_models(
+            backbone_retinanet=backbone.retinanet,
+            num_classes=train_generator.num_classes(),
+            weights=weights,
+            multi_gpu=args.multi_gpu,
+            freeze_backbone=args.freeze_backbone
+        )
+    elif args.snapshot is None and args.backbone == 'seresnet50':
+        weights = args.weights
+        print('****************************************************************')
+        print('Creating model from SEresnet-50, this may take a second...')
         print('****************************************************************')
         if weights is None and args.imagenet_weights:
             weights = backbone.download_imagenet()

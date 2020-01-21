@@ -23,6 +23,7 @@ from . import retinanet
 from . import Backbone
 from ..utils.image import preprocess_image
 from . import resnet_modified
+from . import keras-squeeze-excite-network
 
 class ResNetBackbone(Backbone):
     """ Describes backbone information and provides utility functions.
@@ -42,7 +43,6 @@ class ResNetBackbone(Backbone):
         """
         resnet_filename = 'ResNet-{}-model.keras.h5'
         resnet_resource = 'https://github.com/fizyr/keras-models/releases/download/v0.0.1/{}'.format(resnet_filename)
-        #depth = int(self.backbone.replace('resnet', ''))
         depth = self.backbone.replace('resnet', '')
         if '50' in depth:
             depth = int(50)
@@ -70,7 +70,8 @@ class ResNetBackbone(Backbone):
     def validate(self):
         """ Checks whether the backbone string is correct.
         """
-        allowed_backbones = ['resnet50', 'resnet101', 'resnet152', 'resnet50-m', 'resnet50-multi', 'resnet101-m', 'resnet101-multi', 'resnet152-m', 'resnet152-multi']
+        allowed_backbones = ['resnet50', 'resnet101', 'resnet152', 'resnet50-m', 'resnet50-multi', 'resnet101-m',
+                             'resnet101-multi', 'resnet152-m', 'resnet152-multi', 'seresnet50']
         backbone = self.backbone.split('_')[0]
 
         if backbone not in allowed_backbones:
@@ -144,6 +145,8 @@ def resnet_retinanet(num_classes, backbone='resnet50', inputs=None, modifier=Non
         else:
             inputs = keras.layers.Input(shape=(None, None, 6))
         resnet = resnet_modified.ResNet2D152(inputs, include_top=False, freeze_bn=True)
+    elif backbone == 'seresnet50':
+        resnet = keras-squeeze-excite-network.keras_squeeze_excite_network.se_resnet.SEResNet50(inputs, include_top=False)
     else:
         raise ValueError('Backbone (\'{}\') is invalid.'.format(backbone))
 
@@ -183,3 +186,6 @@ def resnet152m_retinanet(num_classes, inputs=None, **kwargs):
 
 def resnet152_retinanet_multi(num_classes, inputs=None, **kwargs):
     return resnet_retinanet(num_classes=num_classes, backbone='resnet152-multi', inputs=inputs, **kwargs)
+
+def seresnet50_retinanet(nim_classes, inputs=None, **kwargs):
+    return resnet_retinanet(num_classes=num_classes, backbone='seresnet50', inputs=inputs, **kwargs)
