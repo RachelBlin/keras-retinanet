@@ -18,6 +18,8 @@ import keras
 from .. import initializers
 from .. import layers
 
+import tensorflow as tf
+
 import numpy as np
 
 
@@ -160,6 +162,43 @@ def __create_pyramid_features(C3, C4, C5, feature_size=256):
 
     return [P3, P4, P5, P6, P7]
 
+def __create_pyramid_features2(C3, C4, C5, feature_size=256):
+    """ Creates the FPN layers on top of the backbone features.
+
+    Args
+        C3           : Feature stage C3 from the backbone.
+        C4           : Feature stage C4 from the backbone.
+        C5           : Feature stage C5 from the backbone.
+        feature_size : The feature size to use for the resulting feature levels.
+
+    Returns
+        A list of feature levels [P3, P4, P5, P6, P7].
+    """
+    # upsample C5 to get P5 from the FPN paper
+    P5           = keras.layers.Conv2D(feature_size, kernel_size=1, strides=1, padding='same', name='C5_reduced2')(C5)
+    P5_upsampled = layers.UpsampleLike(name='P5_upsampled2')([P5, C4])
+    P5           = keras.layers.Conv2D(feature_size, kernel_size=3, strides=1, padding='same', name='P52')(P5)
+
+    # add P5 elementwise to C4
+    P4           = keras.layers.Conv2D(feature_size, kernel_size=1, strides=1, padding='same', name='C4_reduced2')(C4)
+    P4           = keras.layers.Add(name='P4_merged2')([P5_upsampled, P4])
+    P4_upsampled = layers.UpsampleLike(name='P4_upsampled2')([P4, C3])
+    P4           = keras.layers.Conv2D(feature_size, kernel_size=3, strides=1, padding='same', name='P42')(P4)
+
+    # add P4 elementwise to C3
+    P3 = keras.layers.Conv2D(feature_size, kernel_size=1, strides=1, padding='same', name='C3_reduced2')(C3)
+    P3 = keras.layers.Add(name='P3_merged2')([P4_upsampled, P3])
+    P3 = keras.layers.Conv2D(feature_size, kernel_size=3, strides=1, padding='same', name='P32')(P3)
+
+    # "P6 is obtained via a 3x3 stride-2 conv on C5"
+    P6 = keras.layers.Conv2D(feature_size, kernel_size=3, strides=2, padding='same', name='P62')(C5)
+
+    # "P7 is computed by applying ReLU followed by a 3x3 stride-2 conv on P6"
+    P7 = keras.layers.Activation('relu', name='C6_relu2')(P6)
+    P7 = keras.layers.Conv2D(feature_size, kernel_size=3, strides=2, padding='same', name='P72')(P7)
+
+    return [P3, P4, P5, P6, P7]
+
 
 class AnchorParameters:
     """ The parameteres that define how anchors are generated.
@@ -191,7 +230,7 @@ AnchorParameters.default = AnchorParameters(
 )
 
 
-def default_submodels(num_classes, num_anchors):
+def default_submodels(num_classes, num_anchors, regression_name='regression_submodel', classification_name='classification_submodel', reg_name='regression', class_name='classification'):
     """ Create a list of default submodels used for object detection.
 
     The default submodels contains a regression submodel and a classification submodel.
@@ -204,10 +243,9 @@ def default_submodels(num_classes, num_anchors):
         A list of tuple, where the first element is the name of the submodel and the second element is the submodel itself.
     """
     return [
-        ('regression', default_regression_model(num_anchors)),
-        ('classification', default_classification_model(num_classes, num_anchors))
+        (reg_name, default_regression_model(num_anchors, name=regression_name)),
+        (class_name, default_classification_model(num_classes, num_anchors, name=classification_name))
     ]
-
 
 def __build_model_pyramid(name, model, features):
     """ Applies a single submodel to each FPN level.
@@ -263,6 +301,33 @@ def __build_anchors(anchor_parameters, features):
 
     return keras.layers.Concatenate(axis=1, name='anchors')(anchors)
 
+def __build_anchors2(anchor_parameters, features):
+    """ Builds anchors for the shape of the features from FPN.
+
+    Args
+        anchor_parameters : Parameteres that determine how anchors are generated.
+        features          : The FPN features.
+
+    Returns
+        A tensor containing the anchors for the FPN features.
+
+        The shape is:
+        ```
+        (batch_size, num_anchors, 4)
+        ```
+    """
+    anchors = [
+        layers.Anchors(
+            size=anchor_parameters.sizes[i],
+            stride=anchor_parameters.strides[i],
+            ratios=anchor_parameters.ratios,
+            scales=anchor_parameters.scales,
+            name='anchors2_{}'.format(i)
+        )(f) for i, f in enumerate(features)
+    ]
+
+    return keras.layers.Concatenate(axis=1, name='anchors2')(anchors)
+
 
 def retinanet(
     inputs,
@@ -271,6 +336,10 @@ def retinanet(
     num_anchors             = 9,
     create_pyramid_features = __create_pyramid_features,
     submodels               = None,
+    regression_name         = 'regression_submodel',
+    classification_name     = 'classification_submodel',
+    reg_name                = 'regression',
+    class_name              = 'classification',
     name                    = 'retinanet'
 ):
     """ Construct a RetinaNet model on top of a backbone.
@@ -296,7 +365,7 @@ def retinanet(
         ```
     """
     if submodels is None:
-        submodels = default_submodels(num_classes, num_anchors)
+        submodels = default_submodels(num_classes, num_anchors, regression_name, classification_name, reg_name, class_name)
 
     C3, C4, C5 = backbone_layers
 
@@ -369,3 +438,92 @@ def retinanet_bbox(
 
     # construct the model
     return keras.models.Model(inputs=model.inputs, outputs=outputs, name=name)
+
+def retinanet_bbox_fusion(
+    model1                = None,
+    model2                = None,
+    anchor_parameters     = AnchorParameters.default,
+    nms                   = True,
+    class_specific_filter = True,
+    name                  = 'retinanet-bbox',
+    **kwargs
+):
+    """ Construct two RetinaNet models on top of a backbone, one for each modality and adds convenience functions to output boxes directly.
+
+    This model uses two RetinaNet models, each one specialized on a modality. Predictions are made for each model and the obtained results are
+    fused before being filtered in a final step.
+
+    Args
+        model1                : RetinaNet model from first modality to append bbox layers to. If None, it will create a RetinaNet model using **kwargs.
+        model2                : RetinaNet model from second modality to append bbox layers to. If None, it will create a RetinaNet model using **kwargs.
+        anchor_parameters     : Struct containing configuration for anchor generation (sizes, strides, ratios, scales).
+        nms                   : Whether to use non-maximum suppression for the filtering step.
+        class_specific_filter : Whether to use class specific filtering or filter for the best scoring class only.
+        name                  : Name of the model.
+        *kwargs               : Additional kwargs to pass to the minimal retinanet model.
+
+    Returns
+        A keras.models.Model which takes an image as input and outputs the detections on the image.
+
+        The order is defined as follows:
+        ```
+        [
+            boxes, scores, labels, other[0], other[1], ...
+        ]
+        ```
+    """
+    if model1 is None:
+        model1 = retinanet(num_anchors=anchor_parameters.num_anchors(), **kwargs)
+
+    if model2 is None:
+        model2 = retinanet(num_anchors=anchor_parameters.num_anchors(),
+                           create_pyramid_features=__create_pyramid_features2,
+                           regression_name='regression_submodel2',
+                           classification_name='classification_submodel2',
+                           reg_name='regression2',
+                           class_name='classification2',
+                           name='retinanet2', **kwargs)
+
+    # compute the anchors for both modalities
+    features1 = [model1.get_layer(p_name).output for p_name in ['P3', 'P4', 'P5', 'P6', 'P7']]
+    anchors1  = __build_anchors(anchor_parameters, features1)
+    features2 = [model2.get_layer(p_name).output for p_name in ['P32', 'P42', 'P52', 'P62', 'P72']]
+    anchors2 = __build_anchors2(anchor_parameters, features2)
+
+    # we expect the anchors, regression and classification values as first output for both modalities
+    regression1     = model1.outputs[0]
+    classification1 = model1.outputs[1]
+    regression2 = model2.outputs[0]
+    classification2 = model2.outputs[1]
+
+    # "other" can be any additional output from custom submodels, by default this will be []
+    other1 = model1.outputs[2:]
+    other2 = model2.outputs[2:]
+
+    # apply predicted regression to anchors for each modality
+    boxes1 = layers.RegressBoxes(name='boxes1')([anchors1, regression1])
+    boxes1 = layers.ClipBoxes(name='clipped_boxes1')([model1.inputs[0], boxes1])
+    boxes2 = layers.RegressBoxes(name='boxes2')([anchors2, regression2])
+    boxes2 = layers.ClipBoxes(name='clipped_boxes2')([model2.inputs[0], boxes2])
+
+    # Concatenating all the obtained results
+    """boxes = tf.concat([boxes1, boxes2], 0)
+    classification = tf.concat([classification1, classification2],0)
+    other = other1 + other2"""
+
+    boxes = keras.layers.Concatenate(axis=1)([boxes1, boxes2])
+    classification = keras.layers.Concatenate(axis=1)([classification1, classification2])
+    other = other1 + other2
+
+    # filter detections (apply NMS / score threshold / select top-k)
+    detections = layers.FilterDetections(
+        nms                   = nms,
+        class_specific_filter = class_specific_filter,
+        name                  = 'filtered_detections'
+    )([boxes, classification] + other)
+
+    outputs = detections
+
+    # construct the model
+
+    return keras.models.Model(inputs=[model1.inputs[0], model2.inputs[0]], outputs=outputs, name=name)

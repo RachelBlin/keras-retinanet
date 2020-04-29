@@ -57,6 +57,19 @@ voc_classes = {
     'motorbike' : 3
 } # Polar PASCAL VOC Classes
 
+"""voc_classes = {
+'person' : 0,
+'bike' : 1,
+'car' : 2,
+'motor' : 3,
+'train' : 4,
+'rider': 5,
+'traffic sign' : 6,
+'bus' : 7,
+'truck' : 8,
+'traffic light' : 9
+}"""
+
 # PASCAL VOC Classes myria
 
 """oc_classes = {
@@ -167,6 +180,7 @@ class PascalVocGenerator(Generator):
         """
         truncated = _findNode(element, 'truncated', parse=int)
         difficult = _findNode(element, 'difficult', parse=int)
+        #difficult = _findNode(element, 'occluded', parse=int)
 
         class_name = _findNode(element, 'name').text
         if class_name not in self.classes:

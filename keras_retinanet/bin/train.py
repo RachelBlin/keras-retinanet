@@ -585,7 +585,7 @@ def main(args=None):
     elif args.snapshot is None and args.backbone == 'seresnet50':
         weights = args.weights
         print('****************************************************************')
-        print('Creating model from SEresnet-50, this may take a second...')
+        print('Creating model from SE-Resnet-50, this may take a second...')
         print('****************************************************************')
         if weights is None and args.imagenet_weights:
             weights = backbone.download_imagenet()
@@ -593,8 +593,6 @@ def main(args=None):
             backbone_retinanet=backbone.retinanet,
             num_classes=train_generator.num_classes(),
             weights=weights,
-            multi_gpu=args.multi_gpu,
-            freeze_backbone=args.freeze_backbone
         )
     else:
         weights = args.weights

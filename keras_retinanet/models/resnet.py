@@ -23,7 +23,8 @@ from . import retinanet
 from . import Backbone
 from ..utils.image import preprocess_image
 from . import resnet_modified
-from . import keras-squeeze-excite-network
+from . import resnet_other_layers_name
+#from .keras_squeeze_excite_network.se_resnet import SEResNet50
 
 class ResNetBackbone(Backbone):
     """ Describes backbone information and provides utility functions.
@@ -71,7 +72,8 @@ class ResNetBackbone(Backbone):
         """ Checks whether the backbone string is correct.
         """
         allowed_backbones = ['resnet50', 'resnet101', 'resnet152', 'resnet50-m', 'resnet50-multi', 'resnet101-m',
-                             'resnet101-multi', 'resnet152-m', 'resnet152-multi', 'seresnet50']
+                             'resnet101-multi', 'resnet152-m', 'resnet152-multi', #'seresnet50',
+                             'resnet50-newname']
         backbone = self.backbone.split('_')[0]
 
         if backbone not in allowed_backbones:
@@ -80,10 +82,14 @@ class ResNetBackbone(Backbone):
     def preprocess_image(self, inputs):
         """ Takes as input an image and prepares it for being passed through the network.
         """
-        return preprocess_image(inputs, mode='caffe')
+        if isinstance(inputs, list):
+            return [preprocess_image(inputs[0], mode='caffe'), preprocess_image(inputs[1], mode='caffe')]
+        else:
+            return preprocess_image(inputs, mode='caffe')
 
 
-def resnet_retinanet(num_classes, backbone='resnet50', inputs=None, modifier=None, **kwargs):
+def resnet_retinanet(num_classes, backbone='resnet50', inputs=None, modifier=None, create_pyramid_features=retinanet.__create_pyramid_features, regression_name='regression_submodel',
+    classification_name='classification_submodel', reg_name='regression', class_name='classification', **kwargs):
     """ Constructs a retinanet model using a resnet backbone.
 
     Args
@@ -105,6 +111,8 @@ def resnet_retinanet(num_classes, backbone='resnet50', inputs=None, modifier=Non
     # create the resnet backbone
     if backbone == 'resnet50':
         resnet = keras_resnet.models.ResNet50(inputs, include_top=False, freeze_bn=True)
+    elif backbone == 'resnet50-newname':
+        resnet = resnet_other_layers_name.ResNet50(inputs, include_top=False, freeze_bn=True)
     elif backbone == 'resnet101':
         resnet = keras_resnet.models.ResNet101(inputs, include_top=False, freeze_bn=True)
     elif backbone == 'resnet152':
@@ -145,8 +153,8 @@ def resnet_retinanet(num_classes, backbone='resnet50', inputs=None, modifier=Non
         else:
             inputs = keras.layers.Input(shape=(None, None, 6))
         resnet = resnet_modified.ResNet2D152(inputs, include_top=False, freeze_bn=True)
-    elif backbone == 'seresnet50':
-        resnet = keras-squeeze-excite-network.keras_squeeze_excite_network.se_resnet.SEResNet50(inputs, include_top=False)
+#    elif backbone == 'seresnet50':
+#        resnet = SEResNet50(inputs, include_top=False)
     else:
         raise ValueError('Backbone (\'{}\') is invalid.'.format(backbone))
 
@@ -155,16 +163,18 @@ def resnet_retinanet(num_classes, backbone='resnet50', inputs=None, modifier=Non
         resnet = modifier(resnet)
 
     # create the full model
-    return retinanet.retinanet(inputs=inputs, num_classes=num_classes, backbone_layers=resnet.outputs[1:], **kwargs)
+    return retinanet.retinanet(inputs=inputs, num_classes=num_classes, create_pyramid_features=create_pyramid_features, backbone_layers=resnet.outputs[1:], regression_name=regression_name,
+    classification_name=classification_name, reg_name=reg_name, class_name=class_name, **kwargs)
 
 
 def resnet50_retinanet(num_classes, inputs=None, **kwargs):
     return resnet_retinanet(num_classes=num_classes, backbone='resnet50', inputs=inputs, **kwargs)
 
+def resnet50nn_retinanet(num_classes, inputs=None, **kwargs):
+    return resnet_retinanet(num_classes=num_classes, backbone='resnet50-newname', inputs=inputs, **kwargs)
 
 def resnet101_retinanet(num_classes, inputs=None, **kwargs):
     return resnet_retinanet(num_classes=num_classes, backbone='resnet101', inputs=inputs, **kwargs)
-
 
 def resnet152_retinanet(num_classes, inputs=None, **kwargs):
     return resnet_retinanet(num_classes=num_classes, backbone='resnet152', inputs=inputs, **kwargs)
@@ -187,5 +197,5 @@ def resnet152m_retinanet(num_classes, inputs=None, **kwargs):
 def resnet152_retinanet_multi(num_classes, inputs=None, **kwargs):
     return resnet_retinanet(num_classes=num_classes, backbone='resnet152-multi', inputs=inputs, **kwargs)
 
-def seresnet50_retinanet(nim_classes, inputs=None, **kwargs):
-    return resnet_retinanet(num_classes=num_classes, backbone='seresnet50', inputs=inputs, **kwargs)
+#def seresnet50_retinanet(num_classes, inputs=None, **kwargs):
+#    return resnet_retinanet(num_classes=num_classes, backbone='seresnet50', inputs=inputs, **kwargs)

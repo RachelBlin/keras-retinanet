@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import tensorflow as tf
+
 import keras
 from keras.applications.mobilenet import mobilenet
 from keras.utils import get_file
