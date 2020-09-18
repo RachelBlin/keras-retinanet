@@ -33,7 +33,9 @@ from ..preprocessing.csv_generator import CSVGenerator
 from ..preprocessing.pascal_voc import PascalVocGenerator
 from ..preprocessing.pascal_voc_fusion import PascalVocGeneratorF
 from ..preprocessing.pascal_voc_multimodal import PascalVocGeneratorM
-from ..utils.eval import evaluate
+from ..preprocessing.pascal_voc_early_fusion import PascalVocGeneratorEF
+from ..preprocessing.pascal_voc_late_fusion import PascalVocGeneratorLF
+from ..utils.eval import evaluate, evaluate_fusion
 from ..utils.keras_version import check_keras_version
 
 
@@ -41,8 +43,10 @@ def get_session():
     """ Construct a modified tf session.
     """
     config = tf.ConfigProto()
+    #config = tf.compat.v1.ConfigProto()
     config.gpu_options.allow_growth = True
     return tf.Session(config=config)
+    #return tf.compat.v1.Session(config=config)
 
 
 def create_generator(args):
@@ -81,6 +85,26 @@ def create_generator(args):
             args.pascal_path,
             args.test_path_rgb,
             args.test_path_polar,
+            args.labels_test_dir,
+            'test',
+            image_min_side=args.image_min_side,
+            image_max_side=args.image_max_side
+        )
+    elif args.dataset_type == 'pascal-early-fusion':
+        validation_generator = PascalVocGeneratorEF(
+            args.pascal_path,
+            args.test_path_polar,
+            args.test_path_rgb,
+            args.labels_test_dir,
+            'test',
+            image_min_side=args.image_min_side,
+            image_max_side=args.image_max_side
+        )
+    elif args.dataset_type == 'pascal-late-fusion':
+        validation_generator = PascalVocGeneratorLF(
+            args.pascal_path,
+            args.test_path_1,
+            args.test_path_2,
             args.labels_test_dir,
             'test',
             image_min_side=args.image_min_side,
@@ -125,6 +149,18 @@ def parse_args(args):
     pascal_parser.add_argument('test_path_polar', help='Path to test polar dataset')
     pascal_parser.add_argument('labels_test_dir', help='Path to labels dataset')
 
+    pascal_parser = subparsers.add_parser('pascal-early-fusion')
+    pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
+    pascal_parser.add_argument('test_path_polar', help='Path to test polar dataset')
+    pascal_parser.add_argument('test_path_rgb', help='Path to test RGB dataset')
+    pascal_parser.add_argument('labels_test_dir', help='Path to labels dataset')
+
+    pascal_parser = subparsers.add_parser('pascal-late-fusion')
+    pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
+    pascal_parser.add_argument('test_path_1', help='Path to first test dataset')
+    pascal_parser.add_argument('test_path_2', help='Path to second test dataset')
+    pascal_parser.add_argument('labels_test_dir', help='Path to labels dataset')
+
     csv_parser = subparsers.add_parser('csv')
     csv_parser.add_argument('annotations', help='Path to CSV file containing annotations for evaluation.')
     csv_parser.add_argument('classes', help='Path to a CSV file containing class label mapping.')
@@ -141,10 +177,30 @@ def parse_args(args):
     parser.add_argument('--image-max-side',  help='Rescale the image if the largest side is larger than max_side.', type=int, default=1333)
     parser.add_argument('--weighted-average',   help='Compute the mAP using the weighted average of precisions among classes.', action='store_true')
 
+    parser.add_argument('--model2', help='Path to RetinaNet model 2.')
+    parser.add_argument('--convert-model2',
+                        help='Convert the model to an inference model (ie. the input is a training model).',
+                        action='store_true')
+    parser.add_argument('--backbone2', help='The backbone of the model.', default='resnet50')
+    parser.add_argument('--gpu2', help='Id of the GPU to use (as reported by nvidia-smi).')
+    parser.add_argument('--score-threshold2', help='Threshold on score to filter detections with (defaults to 0.05).',
+                        default=0.05, type=float)
+    parser.add_argument('--iou-threshold2', help='IoU Threshold to count for a positive detection (defaults to 0.5).',
+                        default=0.5, type=float)
+    parser.add_argument('--max-detections2', help='Max Detections per image (defaults to 100).', default=100, type=int)
+    parser.add_argument('--save-path2', help='Path for saving images with detections (doesn\'t work for COCO).')
+    parser.add_argument('--image-min-side2', help='Rescale the image so the smallest side is min_side.', type=int,
+                        default=800)
+    parser.add_argument('--image-max-side2', help='Rescale the image if the largest side is larger than max_side.',
+                        type=int, default=1333)
+    parser.add_argument('--weighted-average2',
+                        help='Compute the mAP using the weighted average of precisions among classes.',
+                        action='store_true')
+
     return parser.parse_args(args)
 
 
-def main(args=None):
+"""def main(args=None):
     # parse arguments
     if args is None:
         args = sys.argv[1:]
@@ -202,8 +258,99 @@ def main(args=None):
         if args.weighted_average:
             print('mAP: {:.4f}'.format(sum([a * b for a, b in zip(total_instances, precisions)]) / sum(total_instances)))
         else:
+            print('mAP: {:.4f}'.format(sum(precisions) / sum(x > 0 for x in total_instances)))"""
+
+def main(args=None):
+    # parse arguments
+    if args is None:
+        args = sys.argv[1:]
+    args = parse_args(args)
+
+    # make sure keras is the minimum required version
+    check_keras_version()
+
+    # optionally choose specific GPU
+    if args.gpu:
+        os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+    keras.backend.tensorflow_backend.set_session(get_session())
+    #tf.compat.v1.keras.backend.set_session(get_session())
+
+    # make save path if it doesn't exist
+    if args.save_path is not None and not os.path.exists(args.save_path):
+        os.makedirs(args.save_path)
+
+    # create the generator
+    generator = create_generator(args)
+
+    # load the model
+
+    if args.model2:
+        print('Loading model fusion, this may take a second...')
+        model = models.load_model_fusion(args.model, args.model2, convert=args.convert_model2)
+
+        average_precisions = evaluate_fusion(
+            generator,
+            model,
+            iou_threshold=args.iou_threshold,
+            score_threshold=args.score_threshold,
+            max_detections=args.max_detections,
+            save_path=args.save_path
+        )
+
+        # print evaluation
+        total_instances = []
+        precisions = []
+        for label, (average_precision, num_annotations) in average_precisions.items():
+            print('{:.0f} instances of class'.format(num_annotations),
+                  generator.label_to_name(label), 'with average precision: {:.4f}'.format(average_precision))
+            total_instances.append(num_annotations)
+            precisions.append(average_precision)
+
+        if sum(total_instances) == 0:
+            print('No test instances found.')
+            return
+
+        if args.weighted_average:
+            print(
+                'mAP: {:.4f}'.format(sum([a * b for a, b in zip(total_instances, precisions)]) / sum(total_instances)))
+        else:
             print('mAP: {:.4f}'.format(sum(precisions) / sum(x > 0 for x in total_instances)))
 
+    else:
+        print('Loading model, this may take a second...')
+        model = models.load_model(args.model, backbone_name=args.backbone, convert=args.convert_model)
+
+        # start evaluation
+        if args.dataset_type == 'coco':
+            from ..utils.coco_eval import evaluate_coco
+            evaluate_coco(generator, model, args.score_threshold)
+        else:
+            average_precisions = evaluate(
+                generator,
+                model,
+                iou_threshold=args.iou_threshold,
+                score_threshold=args.score_threshold,
+                max_detections=args.max_detections,
+                save_path=args.save_path
+            )
+
+            # print evaluation
+            total_instances = []
+            precisions = []
+            for label, (average_precision, num_annotations) in average_precisions.items():
+                print('{:.0f} instances of class'.format(num_annotations),
+                    generator.label_to_name(label), 'with average precision: {:.4f}'.format(average_precision))
+                total_instances.append(num_annotations)
+                precisions.append(average_precision)
+
+            if sum(total_instances) == 0:
+                print('No test instances found.')
+                return
+
+            if args.weighted_average:
+                print('mAP: {:.4f}'.format(sum([a * b for a, b in zip(total_instances, precisions)]) / sum(total_instances)))
+            else:
+                print('mAP: {:.4f}'.format(sum(precisions) / sum(x > 0 for x in total_instances)))
 
 if __name__ == '__main__':
     main()

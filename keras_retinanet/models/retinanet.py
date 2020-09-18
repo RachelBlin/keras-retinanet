@@ -482,7 +482,11 @@ def retinanet_bbox_fusion(
                            classification_name='classification_submodel2',
                            reg_name='regression2',
                            class_name='classification2',
-                           name='retinanet2', **kwargs)
+                           name='retinanet2',
+                           **kwargs)
+
+    """if model2 is None:
+        model2 = retinanet(num_anchors=anchor_parameters.num_anchors(), **kwargs)"""
 
     # compute the anchors for both modalities
     features1 = [model1.get_layer(p_name).output for p_name in ['P3', 'P4', 'P5', 'P6', 'P7']]
@@ -507,20 +511,55 @@ def retinanet_bbox_fusion(
     boxes2 = layers.ClipBoxes(name='clipped_boxes2')([model2.inputs[0], boxes2])
 
     # Concatenating all the obtained results
-    """boxes = tf.concat([boxes1, boxes2], 0)
-    classification = tf.concat([classification1, classification2],0)
+
+    """boxes = keras.layers.Concatenate(axis=1)([boxes1, boxes2])
+    classification = keras.layers.Concatenate(axis=1)([classification1, classification2])
     other = other1 + other2"""
 
-    boxes = keras.layers.Concatenate(axis=1)([boxes1, boxes2])
-    classification = keras.layers.Concatenate(axis=1)([classification1, classification2])
-    other = other1 + other2
-
     # filter detections (apply NMS / score threshold / select top-k)
+    """detections = layers.FilterDetections(
+        nms                   = nms,
+        class_specific_filter = class_specific_filter,
+        max_detections=600,
+        nms_threshold=0.5,
+        score_threshold=0.05,
+        name                  = 'filtered_detections'
+    )([boxes, classification] + other)"""
+
+    detections1 = layers.FilterDetectionsFusion(
+        nms                   = nms,
+        class_specific_filter = class_specific_filter,
+        max_detections=300,
+        nms_threshold=0.486,
+        score_threshold=0.05,
+        name                  = 'filtered_detections1'
+    )([boxes1, classification1] + other1)
+
+    detections2 = layers.FilterDetectionsFusion(
+        nms=nms,
+        class_specific_filter=class_specific_filter,
+        max_detections=300,
+        nms_threshold=0.34,
+        score_threshold=0.05,
+        name='filtered_detections2'
+    )([boxes2, classification2] + other2)
+
+    boxes_first_nms = keras.layers.Concatenate(axis=1)([detections1[0], detections2[0]])
+    scores_first_nms = keras.layers.Concatenate(axis=1)([detections1[1], detections2[1]])
+    labels_first_nms = keras.layers.Concatenate(axis=1)([detections1[2], detections2[2]])
+    classification_first_nms = keras.layers.Concatenate(axis=1)([detections1[3], detections2[3]])
+    other_first_nms = detections1[4:] + detections2[4:]
+
     detections = layers.FilterDetections(
         nms                   = nms,
         class_specific_filter = class_specific_filter,
+        max_detections=600,
+        nms_threshold=0.4,
+        score_threshold=0.05,
         name                  = 'filtered_detections'
-    )([boxes, classification] + other)
+    )([boxes_first_nms, classification_first_nms] + other_first_nms)
+
+    #detections = [keras.layers.Concatenate(axis=1)([detections1[0], detections2[0]]), keras.layers.Concatenate(axis=1)([detections1[1], detections2[1]]), keras.layers.Concatenate(axis=1)([detections1[2], detections2[2]])]
 
     outputs = detections
 

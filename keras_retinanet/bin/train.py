@@ -45,6 +45,7 @@ from ..preprocessing.open_images import OpenImagesGenerator
 from ..preprocessing.pascal_voc import PascalVocGenerator
 from ..preprocessing.pascal_voc_fusion import PascalVocGeneratorF
 from ..preprocessing.pascal_voc_multimodal import PascalVocGeneratorM
+from ..preprocessing.pascal_voc_early_fusion import PascalVocGeneratorEF
 from ..utils.anchors import make_shapes_callback
 from ..utils.keras_version import check_keras_version
 from ..utils.model import freeze as freeze_model
@@ -299,6 +300,25 @@ def create_generators(args, preprocess_image):
             'validation',
             **common_args
         )
+    elif args.dataset_type == 'pascal-early-fusion':
+        train_generator = PascalVocGeneratorEF(
+            args.pascal_path,
+            args.train_path_polar,
+            args.train_path_rgb,
+            args.labels_train_dir,
+            'trainval',
+            transform_generator=transform_generator,
+            **common_args
+        )
+
+        validation_generator = PascalVocGeneratorEF(
+            args.val_path_polar,
+            args.pascal_path,
+            args.val_path_rgb,
+            args.labels_val_dir,
+            'validation',
+            **common_args
+        )
     elif args.dataset_type == 'csv':
         train_generator = CSVGenerator(
             args.annotations,
@@ -420,6 +440,17 @@ def parse_args(args):
     pascal_parser.add_argument('labels_train_dir', help='Pat:wqh to labels directory')
     pascal_parser.add_argument('val_path_rgb', help='Path to validation directory.')
     pascal_parser.add_argument('val_path_polar', help='Path to validation directory.')
+    pascal_parser.add_argument('labels_val_dir', help='Path to labels directory')
+
+    pascal_parser = subparsers.add_parser('pascal-early-fusion')
+    pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
+    pascal_parser.add_argument('train_path_polar',
+                               help='Path to train directory (ie. /train/PARAM_POLAR_TEMP/RetinaNet_Stokes).')
+    pascal_parser.add_argument('train_path_rgb',
+                               help='Path to train directory (ie. /train/PARAM_POLAR_TEMP/RetinaNet_Stokes).')
+    pascal_parser.add_argument('labels_train_dir', help='Pat:wqh to labels directory')
+    pascal_parser.add_argument('val_path_polar', help='Path to validation directory.')
+    pascal_parser.add_argument('val_path_rgb', help='Path to validation directory.')
     pascal_parser.add_argument('labels_val_dir', help='Path to labels directory')
 
     kitti_parser = subparsers.add_parser('kitti')
@@ -572,6 +603,48 @@ def main(args=None):
         weights = args.weights
         print('****************************************************************')
         print('Creating model from resnet-152 multimodal, this may take a second...')
+        print('****************************************************************')
+        if weights is None and args.imagenet_weights:
+            weights = backbone.download_imagenet()
+        model, training_model, prediction_model = create_models(
+            backbone_retinanet=backbone.retinanet,
+            num_classes=train_generator.num_classes(),
+            weights=weights,
+            multi_gpu=args.multi_gpu,
+            freeze_backbone=args.freeze_backbone
+        )
+    elif args.snapshot is None and args.backbone == 'resnet50-fusion':
+        weights = args.weights
+        print('****************************************************************')
+        print('Creating model from resnet-50 7 channels early fusion, this may take a second...')
+        print('****************************************************************')
+        if weights is None and args.imagenet_weights:
+            weights = backbone.download_imagenet()
+        model, training_model, prediction_model = create_models(
+            backbone_retinanet=backbone.retinanet,
+            num_classes=train_generator.num_classes(),
+            weights=weights,
+            multi_gpu=args.multi_gpu,
+            freeze_backbone=args.freeze_backbone
+        )
+    elif args.snapshot is None and args.backbone == 'resnet101-fusion':
+        weights = args.weights
+        print('****************************************************************')
+        print('Creating model from resnet-101 7 channels early fusion, this may take a second...')
+        print('****************************************************************')
+        if weights is None and args.imagenet_weights:
+            weights = backbone.download_imagenet()
+        model, training_model, prediction_model = create_models(
+            backbone_retinanet=backbone.retinanet,
+            num_classes=train_generator.num_classes(),
+            weights=weights,
+            multi_gpu=args.multi_gpu,
+            freeze_backbone=args.freeze_backbone
+        )
+    elif args.snapshot is None and args.backbone == 'resnet152-fusion':
+        weights = args.weights
+        print('****************************************************************')
+        print('Creating model from resnet-152 7 channels early fusion, this may take a second...')
         print('****************************************************************')
         if weights is None and args.imagenet_weights:
             weights = backbone.download_imagenet()

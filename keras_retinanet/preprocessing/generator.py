@@ -31,7 +31,9 @@ from ..utils.image import (
     adjust_transform_for_image,
     apply_transform,
     preprocess_image,
+    preprocess_images,
     resize_image,
+    resize_images
 )
 from ..utils.transform import transform_aabb
 
@@ -306,7 +308,7 @@ class Generator_multi(object):
         transform_parameters=None,
         compute_anchor_targets=anchor_targets_bbox,
         compute_shapes=guess_shapes,
-        preprocess_image=preprocess_image,
+        preprocess_image=preprocess_images,
     ):
         """ Initialize Generator object.
 
@@ -331,7 +333,7 @@ class Generator_multi(object):
         self.transform_parameters   = transform_parameters or TransformParameters()
         self.compute_anchor_targets = compute_anchor_targets
         self.compute_shapes         = compute_shapes
-        self.preprocess_image       = preprocess_image
+        self.preprocess_image       = preprocess_images
 
         self.group_index = 0
         self.lock        = threading.Lock()
@@ -429,7 +431,7 @@ class Generator_multi(object):
     def resize_image(self, image):
         """ Resize an image using image_min_side and image_max_side.
         """
-        return resize_image(image, min_side=self.image_min_side, max_side=self.image_max_side)
+        return resize_images(image, min_side=self.image_min_side, max_side=self.image_max_side)
 
     def preprocess_group_entry(self, image, annotations):
         """ Preprocess image and its annotations.

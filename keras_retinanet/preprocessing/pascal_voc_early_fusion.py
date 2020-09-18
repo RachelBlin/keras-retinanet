@@ -15,7 +15,7 @@ limitations under the License.
 """
 
 from ..preprocessing.generator import Generator
-from ..utils.image import read_image_bgr, read_image_fusion
+from ..utils.image import read_image_rgba, read_rgb_and_polar_images_for_fusion
 
 import os
 import numpy as np
@@ -27,57 +27,12 @@ try:
 except ImportError:
     import xml.etree.ElementTree as ET
 
-"""voc_classes = {
-    'aeroplane'   : 0,
-    'bike'     : 1, #bicycle
-    'bird'        : 2,
-    'boat'        : 3,
-    'bottle'      : 4,
-    'bus'         : 5,
-    'car'         : 6,
-    'cat'         : 7,
-    'chair'       : 8,
-    'cow'         : 9,
-    'diningtable' : 10,
-    'dog'         : 11,
-    'horse'       : 12,
-    'motorbike'   : 13,
-    'person'      : 14,
-    'pottedplant' : 15,
-    'sheep'       : 16,
-    'sofa'        : 17,
-    'train'       : 18,
-    'tvmonitor'   : 19
-}""" # Basic PASCAL VOC Classes
-
 voc_classes = {
     'person' : 0,
     'bike': 1,
     'car' : 2,
     'motorbike' : 3
 } # Polar PASCAL VOC Classes
-
-"""voc_classes = {
-'person' : 0,
-'bike' : 1,
-'car' : 2,
-'motor' : 3,
-'train' : 4,
-'rider': 5,
-'traffic sign' : 6,
-'bus' : 7,
-'truck' : 8,
-'traffic light' : 9
-}"""
-
-# PASCAL VOC Classes myria
-
-"""oc_classes = {
-    'bike': 0,
-    'car': 1,
-    'person': 2,
-    'motorbike': 3,
-}"""
 
 def _findNode(parent, name, debug_name=None, parse=None):
     if debug_name is None:
@@ -94,7 +49,7 @@ def _findNode(parent, name, debug_name=None, parse=None):
     return result
 
 
-class PascalVocGenerator(Generator):
+class PascalVocGeneratorEF(Generator):
     """ Generate data for a Pascal VOC dataset.
 
     See http://host.robots.ox.ac.uk/pascal/VOC/ for more information.
@@ -103,11 +58,11 @@ class PascalVocGenerator(Generator):
     def __init__(
         self,
         data_dir, #/home/rblin/Documents/BD_QCAV
-        train_dir,
+        train_dir_polar,
+        train_dir_rgb,
         labels_dir,
         set_name,
         classes=voc_classes,
-        #image_extension='.jpg',
         image_extension='.png',
         skip_truncated=False,
         skip_difficult=False,
@@ -120,13 +75,13 @@ class PascalVocGenerator(Generator):
             csv_class_file: Path to the CSV classes file.
         """
         self.data_dir             = data_dir
-        self.train_dir            = train_dir
+        self.train_dir_polar = train_dir_polar
+        self.train_dir_rgb        = train_dir_rgb
         self.labels_dir           = labels_dir
         self.set_name             = set_name
         self.classes              = classes
-        #self.image_names          = [l.strip().split(None, 1)[0] for l in open(os.path.join(data_dir, 'ImageSets', 'Main', set_name + '.txt')).readlines()]
-        #self.image_names         = sorted(os.listdir(os.path.join(self.data_dir, 'train/PARAM_POLAR_TEMP')))
-        self.image_names = sorted(os.listdir(os.path.join(self.data_dir, self.train_dir)))
+        self.image_names_rgb = sorted(os.listdir(os.path.join(self.data_dir, self.train_dir_rgb)))
+        self.image_names_polar = sorted(os.listdir(os.path.join(self.data_dir, self.train_dir_polar)))
         self.annotation_names     = sorted(os.listdir(os.path.join(self.data_dir, self.labels_dir)))
         self.image_extension      = image_extension
         self.skip_truncated       = skip_truncated
@@ -136,12 +91,12 @@ class PascalVocGenerator(Generator):
         for key, value in self.classes.items():
             self.labels[value] = key
 
-        super(PascalVocGenerator, self).__init__(**kwargs)
+        super(PascalVocGeneratorEF, self).__init__(**kwargs)
 
     def size(self):
         """ Size of the dataset.
         """
-        return len(self.image_names)
+        return len(self.image_names_polar)
 
     def num_classes(self):
         """ Number of classes in the dataset.
@@ -161,26 +116,22 @@ class PascalVocGenerator(Generator):
     def image_aspect_ratio(self, image_index):
         """ Compute the aspect ratio for an image with image_index.
         """
-        #path  = os.path.join(self.data_dir, 'JPEGImages', self.image_names[image_index] + self.image_extension)
-        path = os.path.join(self.data_dir, self.train_dir, self.image_names[image_index])
-        image = Image.open(path)
-        return float(image.width) / float(image.height)
+        path = os.path.join(self.data_dir, self.train_dir_polar, self.image_names_polar[image_index])
+        image = read_image_rgba(path)
+        return float(image.shape[0]) / float(image.shape[1])
 
     def load_image(self, image_index):
         """ Load an image at the image_index.
         """
-        #path = os.path.join(self.data_dir, 'JPEGImages', self.image_names[image_index] + self.image_extension)
-        #path = os.path.join(self.data_dir, 'train/PARAM_POLAR_TEMP', self.image_names[image_index])
-        path = os.path.join(self.data_dir, self.train_dir, self.image_names[image_index])
-        #return read_image_bgr(path)
-        return read_image_fusion(path)
+        path_rgb = os.path.join(self.data_dir, self.train_dir_rgb, self.image_names_rgb[image_index])
+        path_polar = os.path.join(self.data_dir, self.train_dir_polar, self.image_names_polar[image_index])
+        return read_rgb_and_polar_images_for_fusion(path_polar, path_rgb)
 
     def __parse_annotation(self, element):
         """ Parse an annotation given an XML element.
         """
         truncated = _findNode(element, 'truncated', parse=int)
         difficult = _findNode(element, 'difficult', parse=int)
-        #difficult = _findNode(element, 'occluded', parse=int)
 
         class_name = _findNode(element, 'name').text
         if class_name not in self.classes:
@@ -218,10 +169,8 @@ class PascalVocGenerator(Generator):
     def load_annotations(self, image_index):
         """ Load annotations for an image_index.
         """
-        #filename = self.image_names[image_index] + '.xml'
         filename = self.annotation_names[image_index]
         try:
-            #tree = ET.parse(os.path.join(self.data_dir, 'Annotations', filename))
             tree = ET.parse(os.path.join(self.data_dir, self.labels_dir, filename))
             return self.__parse_annotations(tree.getroot())
         except ET.ParseError as e:

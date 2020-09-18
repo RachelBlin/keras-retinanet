@@ -33,6 +33,15 @@ def read_image_bgr(path):
     image = np.asarray(Image.open(path).convert('RGB'))
     return image[:, :, ::-1].copy()
 
+def read_image_rgba(path):
+    """ Read an image in RGBA format.
+
+        Args
+            path: Path to the image.
+        """
+    image = cv2.imread(path)
+    return image
+
 def read_image_fusion(path):
     """Read every channel of a fusion image.
 
@@ -40,6 +49,8 @@ def read_image_fusion(path):
         path: Path to the image.
     """
     image = imageio.imread(path)
+    image[:, :, 0] = np.zeros((image.shape[0], image.shape[1]), dtype=int)
+    #image[:, :, 0] = np.zeros((image.shape[0], image.shape[1]), dtype=int)
     return image[:, :, ::-1].copy()
 
 def read_matrix_as_image(path):
@@ -69,6 +80,44 @@ def read_rgb_and_polar_images(path_rgb, path_polar):
     image[:, :, 3:] = image_polar
     return image[:, :, ::-1].copy()
 
+def read_rgb_and_polar_images_for_fusion(path_polar, path_rgb):
+    """Read an RGB image and its polarimetric equivalent.
+
+           Args
+               path_rgb: Path to the RGB image.
+               path_polar: Path to the polarimetric image.
+           """
+    """image_rgb = cv2.imread(path_rgb)
+    image_rgb_rs = cv2.resize(image_rgb, dsize=(500, 500), interpolation=cv2.INTER_LANCZOS4)
+    image_polar = cv2.imread(path_polar)
+    if np.shape(image_polar)[2] == 3:
+        image = np.zeros((500, 500, 7), dtype=int)
+        image[:, :, :3] = image_rgb_rs
+        image[:, :, 3:6] = image_polar
+        image[:, :, 6] = image_polar[:, :, 2]
+    elif np.shape(image_polar)[2] == 4:
+        image = np.zeros((500, 500, 7), dtype=int)
+        image[:, :, :3] = image_rgb_rs
+        image[:, :, 3:] = image_polar
+    return image[:, :, ::-1].copy()"""
+    image_rgb = cv2.imread(path_rgb)
+    image_polar = cv2.imread(path_polar, cv2.IMREAD_UNCHANGED)
+    if image_rgb.shape[0] != image_polar.shape[0] and image_rgb.shape[1] != image_polar.shape[1]:
+        image_rgb_rs = cv2.resize(image_rgb, dsize=(500, 500), interpolation=cv2.INTER_LANCZOS4)
+    else:
+        image_rgb_rs = image_rgb
+    if np.shape(image_polar)[2] == 3:
+        image = np.zeros((image_polar.shape[0], image_polar.shape[1], 7), dtype=int)
+        image[:, :, :3] = image_rgb_rs
+        image[:, :, 3:6] = image_polar
+        image[:, :, 6] = image_polar[:, :, 2]
+    elif np.shape(image_polar)[2] == 4:
+        image = np.zeros((image_polar.shape[0], image_polar.shape[1], 7), dtype=int)
+        image[:, :, :4] = image_polar
+        image[:, :, 4:] = image_rgb_rs
+        #image[:, :, 5] = np.zeros((image_polar.shape[0], image_polar.shape[1]), dtype=int)
+    return image[:, :, ::-1].copy()
+
 def preprocess_image(x, mode='caffe'):
     """ Preprocess an image by subtracting the ImageNet mean.
 
@@ -95,6 +144,37 @@ def preprocess_image(x, mode='caffe'):
 
     return x
 
+def preprocess_images(x, mode='caffe'):
+    """ Preprocess an image by subtracting the ImageNet mean.
+
+    Args
+        x: np.array of shape (None, None, 3) or (3, None, None).
+        mode: One of "caffe" or "tf".
+            - caffe: will zero-center each color channel with
+                respect to the ImageNet dataset, without scaling.
+            - tf: will scale pixels between -1 and 1, sample-wise.
+
+    Returns
+        The input with the ImageNet mean subtracted.
+    """
+    # mostly identical to "https://github.com/keras-team/keras-applications/blob/master/keras_applications/imagenet_utils.py"
+    # except for converting RGB -> BGR since we assume BGR already
+    x[0] = x[0].astype(keras.backend.floatx())
+    x[1] = x[1].astype(keras.backend.floatx())
+    if mode == 'tf':
+        x[0] /= 127.5
+        x[0] -= 1.
+        x[1] /= 127.5
+        x[1] -= 1.
+    elif mode == 'caffe':
+        x[0][..., 0] -= 103.939
+        x[0][..., 1] -= 116.779
+        x[0][..., 2] -= 123.68
+        x[1][..., 0] -= 103.939
+        x[1][..., 1] -= 116.779
+        x[1][..., 2] -= 123.68
+
+    return x
 
 def adjust_transform_for_image(transform, image, relative_translation):
     """ Adjust a transformation for a specific image.
@@ -214,3 +294,33 @@ def resize_image(img, min_side=800, max_side=1333):
     img = cv2.resize(img, None, fx=scale, fy=scale)
 
     return img, scale
+
+def resize_images(img, min_side=800, max_side=1333):
+    """ Resize an image such that the size is constrained to min_side and max_side.
+
+    Args
+        min_side: The image's min side will be equal to min_side after resizing.
+        max_side: If after resizing the image's max side is above max_side, resize until the max side is equal to max_side.
+
+    Returns
+        A resized image.
+    """
+    (rows, cols, _) = img[0].shape
+
+    smallest_side = min(rows, cols)
+
+    # rescale the image so the smallest side is min_side
+    scale = min_side / smallest_side
+
+    # check if the largest side is now greater than max_side, which can happen
+    # when images have a large aspect ratio
+    largest_side = max(rows, cols)
+    if largest_side * scale > max_side:
+        scale = max_side / largest_side
+
+    # resize the image with the computed scale
+    img[0] = cv2.resize(img[0], None, fx=scale, fy=scale)
+    img[1] = cv2.resize(img[1], None, fx=scale, fy=scale)
+
+    return img, scale
+

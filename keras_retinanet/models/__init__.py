@@ -87,7 +87,7 @@ def load_model(filepath, backbone_name='resnet50', convert=False, nms=True, clas
 
     return model
 
-def load_model_fusion(filepath, backbone_name1='resnet50', backbone_name2='resnet50-newname', convert=False, nms=True, class_specific_filter=True):
+def load_model_fusion(filepath, filepath2, backbone_name1='resnet50', backbone_name2='resnet50-newname', convert=False, nms=True, class_specific_filter=True):
     """ Loads a retinanet model using the correct custom objects.
 
     # Arguments
@@ -110,11 +110,8 @@ def load_model_fusion(filepath, backbone_name1='resnet50', backbone_name2='resne
     from .retinanet import retinanet_bbox_fusion
 
     model1 = keras.models.load_model(filepath, custom_objects=backbone(backbone_name1).custom_objects)
-    model2 = keras.models.load_model(filepath, custom_objects=backbone(backbone_name2).custom_objects)
+    model2 = keras.models.load_model(filepath2, custom_objects=backbone(backbone_name2).custom_objects)
 
     model = retinanet_bbox_fusion(model1=model1, model2=model2, nms=nms, class_specific_filter=class_specific_filter)
-
-    if convert:
-        model = retinanet_bbox_fusion(model1=model1, model2=model2, nms=nms, class_specific_filter=class_specific_filter)
 
     return model

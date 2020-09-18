@@ -184,3 +184,26 @@ class ClipBoxes(keras.layers.Layer):
 
     def compute_output_shape(self, input_shape):
         return input_shape[1]
+
+class ClipBoxesRGB(keras.layers.Layer):
+    """ Keras layer to clip box values to lie inside a given shape.
+    """
+
+    def call(self, inputs, **kwargs):
+        image, boxes = inputs
+        shape = keras.backend.cast(keras.backend.shape(image), keras.backend.floatx())
+        if keras.backend.image_data_format() == 'channels_first':
+            height = shape[2]
+            width  = shape[3]
+        else:
+            height = shape[1]
+            width  = shape[2]
+        x1 = backend.clip_by_value(round(0.919*boxes[:, :, 0]-15.4), 0, width)
+        y1 = backend.clip_by_value(round(1.04*boxes[:, :, 1]-83), 0, height)
+        x2 = backend.clip_by_value(round(0.919*boxes[:, :, 2]-15.4), 0, width)
+        y2 = backend.clip_by_value(round(1.04*boxes[:, :, 3]-83), 0, height)
+
+        return keras.backend.stack([x1, y1, x2, y2], axis=2)
+
+    def compute_output_shape(self, input_shape):
+        return input_shape[1]
