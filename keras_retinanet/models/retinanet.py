@@ -532,6 +532,7 @@ def retinanet_bbox_fusion(
         max_detections=300,
         nms_threshold=0.486,
         score_threshold=0.05,
+        soft_nms_sigma=0.4,
         name                  = 'filtered_detections1'
     )([boxes1, classification1] + other1)
 
@@ -541,6 +542,7 @@ def retinanet_bbox_fusion(
         max_detections=300,
         nms_threshold=0.34,
         score_threshold=0.05,
+        soft_nms_sigma=2.0,
         name='filtered_detections2'
     )([boxes2, classification2] + other2)
 
@@ -554,12 +556,111 @@ def retinanet_bbox_fusion(
         nms                   = nms,
         class_specific_filter = class_specific_filter,
         max_detections=600,
-        nms_threshold=0.4,
+        nms_threshold=0.45,
         score_threshold=0.05,
         name                  = 'filtered_detections'
     )([boxes_first_nms, classification_first_nms] + other_first_nms)
 
-    #detections = [keras.layers.Concatenate(axis=1)([detections1[0], detections2[0]]), keras.layers.Concatenate(axis=1)([detections1[1], detections2[1]]), keras.layers.Concatenate(axis=1)([detections1[2], detections2[2]])]
+    outputs = detections
+
+    # construct the model
+
+    return keras.models.Model(inputs=[model1.inputs[0], model2.inputs[0]], outputs=outputs, name=name)
+
+def retinanet_bbox_or_fusion(
+    model1                = None,
+    model2                = None,
+    anchor_parameters     = AnchorParameters.default,
+    nms                   = True,
+    class_specific_filter = True,
+    name                  = 'retinanet-bbox',
+    **kwargs
+):
+    """ Construct two RetinaNet models on top of a backbone, one for each modality and adds convenience functions to output boxes directly.
+
+    This model uses two RetinaNet models, each one specialized on a modality. Predictions are made for each model and the obtained results are
+    fused before being filtered in a final step.
+
+    Args
+        model1                : RetinaNet model from first modality to append bbox layers to. If None, it will create a RetinaNet model using **kwargs.
+        model2                : RetinaNet model from second modality to append bbox layers to. If None, it will create a RetinaNet model using **kwargs.
+        anchor_parameters     : Struct containing configuration for anchor generation (sizes, strides, ratios, scales).
+        nms                   : Whether to use non-maximum suppression for the filtering step.
+        class_specific_filter : Whether to use class specific filtering or filter for the best scoring class only.
+        name                  : Name of the model.
+        *kwargs               : Additional kwargs to pass to the minimal retinanet model.
+
+    Returns
+        A keras.models.Model which takes an image as input and outputs the detections on the image.
+
+        The order is defined as follows:
+        ```
+        [
+            boxes, scores, labels, other[0], other[1], ...
+        ]
+        ```
+    """
+    if model1 is None:
+        model1 = retinanet(num_anchors=anchor_parameters.num_anchors(), **kwargs)
+
+    if model2 is None:
+        model2 = retinanet(num_anchors=anchor_parameters.num_anchors(),
+                           create_pyramid_features=__create_pyramid_features2,
+                           regression_name='regression_submodel2',
+                           classification_name='classification_submodel2',
+                           reg_name='regression2',
+                           class_name='classification2',
+                           name='retinanet2',
+                           **kwargs)
+
+    """if model2 is None:
+        model2 = retinanet(num_anchors=anchor_parameters.num_anchors(), **kwargs)"""
+
+    # compute the anchors for both modalities
+    features1 = [model1.get_layer(p_name).output for p_name in ['P3', 'P4', 'P5', 'P6', 'P7']]
+    anchors1  = __build_anchors(anchor_parameters, features1)
+    features2 = [model2.get_layer(p_name).output for p_name in ['P32', 'P42', 'P52', 'P62', 'P72']]
+    anchors2 = __build_anchors2(anchor_parameters, features2)
+
+    # we expect the anchors, regression and classification values as first output for both modalities
+    regression1     = model1.outputs[0]
+    classification1 = model1.outputs[1]
+    regression2 = model2.outputs[0]
+    classification2 = model2.outputs[1]
+
+    # "other" can be any additional output from custom submodels, by default this will be []
+    other1 = model1.outputs[2:]
+    other2 = model2.outputs[2:]
+
+    # apply predicted regression to anchors for each modality
+    boxes1 = layers.RegressBoxes(name='boxes1')([anchors1, regression1])
+    boxes1 = layers.ClipBoxes(name='clipped_boxes1')([model1.inputs[0], boxes1])
+    boxes2 = layers.RegressBoxes(name='boxes2')([anchors2, regression2])
+    boxes2 = layers.ClipBoxes(name='clipped_boxes2')([model2.inputs[0], boxes2])
+
+    # filter detections (apply NMS / score threshold / select top-k)
+
+    detections1 = layers.FilterDetectionsFusion(
+        nms                   = nms,
+        class_specific_filter = class_specific_filter,
+        max_detections=300,
+        nms_threshold=0.486,
+        score_threshold=0.05,
+        soft_nms_sigma=0.4,
+        name                  = 'filtered_detections1'
+    )([boxes1, classification1] + other1)
+
+    detections2 = layers.FilterDetectionsFusion(
+        nms=nms,
+        class_specific_filter=class_specific_filter,
+        max_detections=300,
+        nms_threshold=0.34,
+        score_threshold=0.05,
+        soft_nms_sigma=2.0,
+        name='filtered_detections2'
+    )([boxes2, classification2] + other2)
+
+    detections = [detections1[0], detections2[0], detections1[1], detections2[1], detections1[2], detections2[2]]
 
     outputs = detections
 

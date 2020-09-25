@@ -23,7 +23,7 @@ from . import retinanet
 from . import Backbone
 from ..utils.image import preprocess_image
 from . import resnet_modified
-from . import resnet_other_layers_name
+#from . import resnet_other_layers_name
 #from .keras_squeeze_excite_network.se_resnet import SEResNet50
 
 class ResNetBackbone(Backbone):
@@ -73,7 +73,7 @@ class ResNetBackbone(Backbone):
         """
         allowed_backbones = ['resnet50', 'resnet101', 'resnet152', 'resnet50-m', 'resnet50-multi', 'resnet101-m',
                              'resnet101-multi', 'resnet152-m', 'resnet152-multi', #'seresnet50',
-                             'resnet50-newname', 'resnet50-fusion', 'resnet101-fusion', 'resnet152-fusion']
+                             'resnet50-newname']
         backbone = self.backbone.split('_')[0]
 
         if backbone not in allowed_backbones:
@@ -153,24 +153,6 @@ def resnet_retinanet(num_classes, backbone='resnet50', inputs=None, modifier=Non
         else:
             inputs = keras.layers.Input(shape=(None, None, 6))
         resnet = resnet_modified.ResNet2D152(inputs, include_top=False, freeze_bn=True)
-    elif backbone == 'resnet152-fusion':
-        if keras.backend.image_data_format() == 'channels_first':
-            inputs = keras.layers.Input(shape=(7, None, None))
-        else:
-            inputs = keras.layers.Input(shape=(None, None, 7))
-        resnet = resnet_modified.ResNet2D152(inputs, include_top=False, freeze_bn=True)
-    elif backbone == 'resnet101-fusion':
-        if keras.backend.image_data_format() == 'channels_first':
-            inputs = keras.layers.Input(shape=(7, None, None))
-        else:
-            inputs = keras.layers.Input(shape=(None, None, 7))
-        resnet = resnet_modified.ResNet2D101(inputs, include_top=False, freeze_bn=True)
-    elif backbone == 'resnet50-fusion':
-        if keras.backend.image_data_format() == 'channels_first':
-            inputs = keras.layers.Input(shape=(7, None, None))
-        else:
-            inputs = keras.layers.Input(shape=(None, None, 7))
-        resnet = resnet_modified.ResNet2D50(inputs, include_top=False, freeze_bn=True)
 #    elif backbone == 'seresnet50':
 #        resnet = SEResNet50(inputs, include_top=False)
     else:
@@ -214,15 +196,6 @@ def resnet152m_retinanet(num_classes, inputs=None, **kwargs):
 
 def resnet152_retinanet_multi(num_classes, inputs=None, **kwargs):
     return resnet_retinanet(num_classes=num_classes, backbone='resnet152-multi', inputs=inputs, **kwargs)
-
-def resnet50_retinanet_fusion(num_classes, inputs=None, **kwargs):
-    return resnet_retinanet(num_classes=num_classes, backbone='resnet50-fusion', inputs=inputs, **kwargs)
-
-def resnet101_retinanet_fusion(num_classes, inputs=None, **kwargs):
-    return resnet_retinanet(num_classes=num_classes, backbone='resnet101-fusion', inputs=inputs, **kwargs)
-
-def resnet152_retinanet_fusion(num_classes, inputs=None, **kwargs):
-    return resnet_retinanet(num_classes=num_classes, backbone='resnet152-fusion', inputs=inputs, **kwargs)
 
 #def seresnet50_retinanet(num_classes, inputs=None, **kwargs):
 #    return resnet_retinanet(num_classes=num_classes, backbone='seresnet50', inputs=inputs, **kwargs)

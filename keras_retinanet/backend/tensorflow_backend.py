@@ -78,7 +78,6 @@ def non_max_suppression_with_scores(*args, **kwargs):
     """
     return tensorflow.image.non_max_suppression_with_scores(*args, **kwargs)
 
-
 def range(*args, **kwargs):
     """ See https://www.tensorflow.org/versions/master/api_docs/python/tf/range .
     """

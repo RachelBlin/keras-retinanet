@@ -35,7 +35,7 @@ from ..preprocessing.pascal_voc_fusion import PascalVocGeneratorF
 from ..preprocessing.pascal_voc_multimodal import PascalVocGeneratorM
 from ..preprocessing.pascal_voc_early_fusion import PascalVocGeneratorEF
 from ..preprocessing.pascal_voc_late_fusion import PascalVocGeneratorLF
-from ..utils.eval import evaluate, evaluate_fusion
+from ..utils.eval import evaluate, evaluate_fusion, evaluate_or_fusion
 from ..utils.keras_version import check_keras_version
 
 
@@ -43,10 +43,8 @@ def get_session():
     """ Construct a modified tf session.
     """
     config = tf.ConfigProto()
-    #config = tf.compat.v1.ConfigProto()
     config.gpu_options.allow_growth = True
     return tf.Session(config=config)
-    #return tf.compat.v1.Session(config=config)
 
 
 def create_generator(args):
@@ -178,9 +176,7 @@ def parse_args(args):
     parser.add_argument('--weighted-average',   help='Compute the mAP using the weighted average of precisions among classes.', action='store_true')
 
     parser.add_argument('--model2', help='Path to RetinaNet model 2.')
-    parser.add_argument('--convert-model2',
-                        help='Convert the model to an inference model (ie. the input is a training model).',
-                        action='store_true')
+    parser.add_argument('--filter-style', help='Define the final filtering style', default='soft-nms')
     parser.add_argument('--backbone2', help='The backbone of the model.', default='resnet50')
     parser.add_argument('--gpu2', help='Id of the GPU to use (as reported by nvidia-smi).')
     parser.add_argument('--score-threshold2', help='Threshold on score to filter detections with (defaults to 0.05).',
@@ -196,6 +192,8 @@ def parse_args(args):
     parser.add_argument('--weighted-average2',
                         help='Compute the mAP using the weighted average of precisions among classes.',
                         action='store_true')
+
+    return parser.parse_args(args)
 
     return parser.parse_args(args)
 
@@ -286,16 +284,28 @@ def main(args=None):
 
     if args.model2:
         print('Loading model fusion, this may take a second...')
-        model = models.load_model_fusion(args.model, args.model2, convert=args.convert_model2)
+        if args.filter_style=='soft-nms':
+            model = models.load_model_fusion(args.model, args.model2)
 
-        average_precisions = evaluate_fusion(
+            average_precisions = evaluate_fusion(
             generator,
             model,
             iou_threshold=args.iou_threshold,
             score_threshold=args.score_threshold,
             max_detections=args.max_detections,
             save_path=args.save_path
-        )
+            )
+        elif args.filter_style=='or-filter':
+            model = models.load_model_or_fusion(args.model, args.model2)
+
+            average_precisions = evaluate_or_fusion(
+            generator,
+            model,
+            iou_threshold=args.iou_threshold,
+            score_threshold=args.score_threshold,
+            max_detections=args.max_detections,
+            save_path=args.save_path
+            )
 
         # print evaluation
         total_instances = []

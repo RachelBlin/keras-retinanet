@@ -33,7 +33,7 @@ from ..utils.image import (
     preprocess_image,
     preprocess_images,
     resize_image,
-    resize_images
+    resize_images,
 )
 from ..utils.transform import transform_aabb
 

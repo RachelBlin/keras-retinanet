@@ -49,8 +49,6 @@ def read_image_fusion(path):
         path: Path to the image.
     """
     image = imageio.imread(path)
-    image[:, :, 0] = np.zeros((image.shape[0], image.shape[1]), dtype=int)
-    #image[:, :, 0] = np.zeros((image.shape[0], image.shape[1]), dtype=int)
     return image[:, :, ::-1].copy()
 
 def read_matrix_as_image(path):
@@ -323,4 +321,3 @@ def resize_images(img, min_side=800, max_side=1333):
     img[1] = cv2.resize(img[1], None, fx=scale, fy=scale)
 
     return img, scale
-

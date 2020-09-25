@@ -249,4 +249,3 @@ detect_image(image, label_path, labels_to_names, model)
 for image in images:
     path = image_path + image
     detect_image(path, label_path, labels_to_names, model)"""
-
