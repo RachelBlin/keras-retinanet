@@ -116,6 +116,35 @@ def load_model_fusion(filepath, filepath2, backbone_name1='resnet50', backbone_n
 
     return model
 
+def load_model_naive_fusion(filepath, filepath2, backbone_name1='resnet50', backbone_name2='resnet50-newname', nms=True, class_specific_filter=True):
+    """ Loads a retinanet model using the correct custom objects.
+
+    # Arguments
+        filepath: one of the following:
+            - string, path to the saved model, or
+            - h5py.File object from which to load the model
+        backbone_name         : Backbone with which the model was trained.
+        convert               : Boolean, whether to convert the model to an inference model.
+        nms                   : Boolean, whether to add NMS filtering to the converted model. Only valid if convert=True.
+        class_specific_filter : Whether to use class specific filtering or filter for the best scoring class only.
+
+    # Returns
+        A keras.models.Model object.
+
+    # Raises
+        ImportError: if h5py is not available.
+        ValueError: In case of an invalid savefile.
+    """
+    import keras.models
+    from .retinanet import retinanet_bbox_naive_fusion
+
+    model1 = keras.models.load_model(filepath, custom_objects=backbone(backbone_name1).custom_objects)
+    model2 = keras.models.load_model(filepath2, custom_objects=backbone(backbone_name2).custom_objects)
+
+    model = retinanet_bbox_naive_fusion(model1=model1, model2=model2, nms=nms, class_specific_filter=class_specific_filter)
+
+    return model
+
 def load_model_or_fusion(filepath, filepath2, backbone_name1='resnet50', backbone_name2='resnet50-newname', nms=True, class_specific_filter=True):
     """ Loads a retinanet model using the correct custom objects.
 

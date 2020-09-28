@@ -197,67 +197,6 @@ def parse_args(args):
 
     return parser.parse_args(args)
 
-
-"""def main(args=None):
-    # parse arguments
-    if args is None:
-        args = sys.argv[1:]
-    args = parse_args(args)
-
-    # make sure keras is the minimum required version
-    check_keras_version()
-
-    # optionally choose specific GPU
-    if args.gpu:
-        os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
-    keras.backend.tensorflow_backend.set_session(get_session())
-
-    # make save path if it doesn't exist
-    if args.save_path is not None and not os.path.exists(args.save_path):
-        os.makedirs(args.save_path)
-
-    # create the generator
-    generator = create_generator(args)
-
-    # load the model
-    print('Loading model, this may take a second...')
-    model = models.load_model(args.model, backbone_name=args.backbone, convert=args.convert_model)
-
-    # print model summary
-    # print(model.summary())
-
-    # start evaluation
-    if args.dataset_type == 'coco':
-        from ..utils.coco_eval import evaluate_coco
-        evaluate_coco(generator, model, args.score_threshold)
-    else:
-        average_precisions = evaluate(
-            generator,
-            model,
-            iou_threshold=args.iou_threshold,
-            score_threshold=args.score_threshold,
-            max_detections=args.max_detections,
-            save_path=args.save_path
-        )
-
-        # print evaluation
-        total_instances = []
-        precisions = []
-        for label, (average_precision, num_annotations) in average_precisions.items():
-            print('{:.0f} instances of class'.format(num_annotations),
-                  generator.label_to_name(label), 'with average precision: {:.4f}'.format(average_precision))
-            total_instances.append(num_annotations)
-            precisions.append(average_precision)
-
-        if sum(total_instances) == 0:
-            print('No test instances found.')
-            return
-
-        if args.weighted_average:
-            print('mAP: {:.4f}'.format(sum([a * b for a, b in zip(total_instances, precisions)]) / sum(total_instances)))
-        else:
-            print('mAP: {:.4f}'.format(sum(precisions) / sum(x > 0 for x in total_instances)))"""
-
 def main(args=None):
     # parse arguments
     if args is None:
@@ -285,6 +224,17 @@ def main(args=None):
     if args.model2:
         print('Loading model fusion, this may take a second...')
         if args.filter_style=='soft-nms':
+            model = models.load_model_fusion(args.model, args.model2)
+
+            average_precisions = evaluate_fusion(
+            generator,
+            model,
+            iou_threshold=args.iou_threshold,
+            score_threshold=args.score_threshold,
+            max_detections=args.max_detections,
+            save_path=args.save_path
+            )
+        elif args.filter_style=='naive-fusion':
             model = models.load_model_fusion(args.model, args.model2)
 
             average_precisions = evaluate_fusion(
