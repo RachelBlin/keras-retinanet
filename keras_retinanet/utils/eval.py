@@ -235,19 +235,13 @@ def _get_detections_or_fusion(generator, model, score_threshold=0.05, max_detect
         image_boxes = image_boxes1
         image_scores = image_scores1
         image_labels = image_labels1
-        #percentage = 0.007
         for j in range(image_boxes1.shape[0]):
             box1_temp = image_boxes1[j]
             box_sup_temp_index = None
             score_temp = image_scores[j]
             for k in range(image_boxes2.shape[0]):
                 box2_temp = image_boxes2[k]
-                """if (box1_temp[0] > (1-percentage)*box2_temp[0] and box1_temp[0] < (1+percentage)*box2_temp[0]) and (box1_temp[1] > (1-percentage)*box2_temp[1] and box1_temp[1] < (1+percentage)*box2_temp[1]) and (box1_temp[2] > (1-percentage)*box2_temp[2] and box1_temp[2] < (1+percentage)*box2_temp[2]) and (box1_temp[3] > (1-percentage)*box2_temp[3] and box1_temp[3] < (1+percentage)*box2_temp[3]) and image_labels[j]==image_labels2[k]:
-                    if image_scores2[k] > score_temp:
-                        box_sup_temp_index = k
-                        score_temp = image_scores2[k]
-                elif (box1_temp[0] > (1-percentage)*box2_temp[0] and box1_temp[0] < (1+percentage)*box2_temp[0]) and (box1_temp[1] > (1-percentage)*box2_temp[1] and box1_temp[1] < (1+percentage)*box2_temp[1]) and (box1_temp[2] > (1-percentage)*box2_temp[2] and box1_temp[2] < (1+percentage)*box2_temp[2]) and (box1_temp[3] > (1-percentage)*box2_temp[3] and box1_temp[3] < (1+percentage)*box2_temp[3]):"""
-                if intersection_over_union(box1_temp, box2_temp) > 0.75 and image_labels[j]==image_labels2[k]:
+                if intersection_over_union(box1_temp, box2_temp) > 0.89 and image_labels[j]==image_labels2[k]:
                     if image_scores2[k] > score_temp:
                         box_sup_temp_index = k
                         score_temp = image_scores2[k]
@@ -255,10 +249,17 @@ def _get_detections_or_fusion(generator, model, score_threshold=0.05, max_detect
                 image_boxes[j] = image_boxes2[box_sup_temp_index]
                 image_scores[j] = image_scores2[box_sup_temp_index]
 
+        for l in range(image_boxes2.shape[0]):
+            flag = 1
+            for m in range(image_boxes1.shape[0]):
+                if intersection_over_union(image_boxes2[l],image_boxes1[m]) >= 0.05 or image_scores2[l] <= 0.05:
+                    flag = 0
+            if flag ==1:
+                image_boxes = np.append(image_boxes, [image_boxes2[l]], axis=0)
+                image_scores = np.append(image_scores, [image_scores2[l]], axis=0)
+                image_labels = np.append(image_labels, [image_labels2[l]], axis=0)
+
         # select detections
-        """image_boxes      = boxes1[0, indices1[scores_sort1], :]
-        image_scores     = scores1[scores_sort1]
-        image_labels     = labels1[0, indices1[scores_sort1]]"""
         image_detections = np.concatenate([image_boxes, np.expand_dims(image_scores, axis=1), np.expand_dims(image_labels, axis=1)], axis=1)
 
         if save_path is not None:
