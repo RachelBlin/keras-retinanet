@@ -59,7 +59,7 @@ def filter_detections(
             # perform NMS
             #nms_indices = backend.non_max_suppression(filtered_boxes, filtered_scores, max_output_size=max_detections, iou_threshold=nms_threshold)
 
-            nms_indices, nms_scores = backend.non_max_suppression_with_scores(filtered_boxes, filtered_scores, max_output_size=max_detections, iou_threshold=nms_threshold, soft_nms_sigma=0.6)
+            nms_indices, nms_scores = backend.non_max_suppression_with_scores(filtered_boxes, filtered_scores, max_output_size=max_detections, iou_threshold=nms_threshold, soft_nms_sigma=1.0)
 
             # filter indices based on NMS
             indices = keras.backend.gather(indices, nms_indices)

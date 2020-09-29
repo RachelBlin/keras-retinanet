@@ -35,7 +35,7 @@ from ..preprocessing.pascal_voc_fusion import PascalVocGeneratorF
 from ..preprocessing.pascal_voc_multimodal import PascalVocGeneratorM
 from ..preprocessing.pascal_voc_early_fusion import PascalVocGeneratorEF
 from ..preprocessing.pascal_voc_late_fusion import PascalVocGeneratorLF
-from ..utils.eval import evaluate, evaluate_fusion, evaluate_or_fusion
+from ..utils.eval import evaluate, evaluate_fusion, evaluate_or_fusion, evaluate_and_fusion
 from ..utils.keras_version import check_keras_version
 
 
@@ -235,7 +235,7 @@ def main(args=None):
             save_path=args.save_path
             )
         elif args.filter_style=='naive-fusion':
-            model = models.load_model_fusion(args.model, args.model2)
+            model = models.load_model_naive_fusion(args.model, args.model2)
 
             average_precisions = evaluate_fusion(
             generator,
@@ -249,6 +249,17 @@ def main(args=None):
             model = models.load_model_or_fusion(args.model, args.model2)
 
             average_precisions = evaluate_or_fusion(
+            generator,
+            model,
+            iou_threshold=args.iou_threshold,
+            score_threshold=args.score_threshold,
+            max_detections=args.max_detections,
+            save_path=args.save_path
+            )
+        elif args.filter_style=='and-filter':
+            model = models.load_model_or_fusion(args.model, args.model2)
+
+            average_precisions = evaluate_and_fusion(
             generator,
             model,
             iou_threshold=args.iou_threshold,

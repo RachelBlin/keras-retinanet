@@ -276,6 +276,105 @@ def _get_detections_or_fusion(generator, model, score_threshold=0.05, max_detect
 
     return all_detections
 
+def _get_detections_and_fusion(generator, model, score_threshold=0.05, max_detections=100, save_path=None):
+    """ Get the detections from the model using the generator.
+
+    The result is a list of lists such that the size is:
+        all_detections[num_images][num_classes] = detections[num_detections, 4 + num_classes]
+
+    # Arguments
+        generator       : The generator used to run images through the model.
+        model           : The model to run on the images.
+        score_threshold : The score confidence threshold to use.
+        max_detections  : The maximum number of detections to use per image.
+        save_path       : The path to save the images with visualized detections to.
+    # Returns
+        A list of lists containing the detections for each image in the generator.
+    """
+    all_detections = [[None for i in range(generator.num_classes())] for j in range(generator.size())]
+
+    for i in range(generator.size()):
+        raw_image    = generator.load_image(i)
+        image        = generator.preprocess_image(raw_image.copy())
+        image, scale = generator.resize_image(image)
+
+        if keras.backend.image_data_format() == 'channels_first':
+            image[0] = image[0].transpose((2, 0, 1))
+            image[1] = image[1].transpose((2, 0, 1))
+
+        # run network
+        #empty_image = np.zeros(image[0].shape)
+        #boxes, scores, labels = model.predict_on_batch([np.expand_dims(image[0], axis=0), np.expand_dims(empty_image, axis=0)])[:3]
+        boxes1, boxes2, scores1, scores2, labels1, labels2 = model.predict_on_batch([np.expand_dims(image[0], axis=0), np.expand_dims(image[1], axis=0)])[:6]
+
+        # correct boxes for image scale
+        boxes1 /= scale
+        boxes2 /= scale
+
+        # select indices which have a score above the threshold
+        indices1 = np.where(scores1[0, :] > score_threshold)[0]
+        indices2 = np.where(scores2[0, :] > score_threshold)[0]
+
+        # select those scores
+        scores1 = scores1[0][indices1]
+        scores2 = scores2[0][indices2]
+
+        # find the order with which to sort the scores
+        scores_sort1 = np.argsort(-scores1)[:max_detections]
+        scores_sort2 = np.argsort(-scores2)[:max_detections]
+
+        image_boxes1      = boxes1[0, indices1[scores_sort1], :]
+        image_scores1     = scores1[scores_sort1]
+        image_labels1     = labels1[0, indices1[scores_sort1]]
+        image_boxes2      = boxes2[0, indices2[scores_sort2], :]
+        image_scores2     = scores2[scores_sort2]
+        image_labels2     = labels2[0, indices2[scores_sort2]]
+
+        # Initialize the detected boxes to the ones of first modality
+        image_boxes = image_boxes1
+        image_scores = image_scores1
+        image_labels = image_labels1
+        for j in range(image_boxes1.shape[0]):
+            box1_temp = image_boxes1[j]
+            box_sup_temp_index = None
+            score_temp = image_scores[j]
+            for k in range(image_boxes2.shape[0]):
+                box2_temp = image_boxes2[k]
+                if intersection_over_union(box1_temp, box2_temp) > 0.89 and image_labels[j]==image_labels2[k]:
+                    if image_scores2[k] > score_temp:
+                        box_sup_temp_index = k
+                        score_temp = image_scores2[k]
+            if box_sup_temp_index is not None:
+                image_boxes[j] = image_boxes2[box_sup_temp_index]
+                image_scores[j] = image_scores2[box_sup_temp_index]
+
+        for l in range(image_boxes2.shape[0]):
+            flag = 1
+            for m in range(image_boxes1.shape[0]):
+                if intersection_over_union(image_boxes2[l],image_boxes1[m]) >= 0.05 or image_scores2[l] <= 0.05:
+                    flag = 0
+            if flag ==1:
+                image_boxes = np.append(image_boxes, [image_boxes2[l]], axis=0)
+                image_scores = np.append(image_scores, [image_scores2[l]], axis=0)
+                image_labels = np.append(image_labels, [image_labels2[l]], axis=0)
+
+        # select detections
+        image_detections = np.concatenate([image_boxes, np.expand_dims(image_scores, axis=1), np.expand_dims(image_labels, axis=1)], axis=1)
+
+        if save_path is not None:
+            draw_annotations(raw_image, generator.load_annotations(i), label_to_name=generator.label_to_name)
+            draw_detections(raw_image, image_boxes, image_scores, image_labels, label_to_name=generator.label_to_name)
+
+            cv2.imwrite(os.path.join(save_path, '{}.png'.format(i)), raw_image)
+
+        # copy detections to all_detections
+        for label in range(generator.num_classes()):
+            all_detections[i][label] = image_detections[image_detections[:, -1] == label, :-1]
+
+        print('{}/{}'.format(i + 1, generator.size()), end='\r')
+
+    return all_detections
+
 def _get_annotations(generator):
     """ Get the ground truth annotations from the generator.
 
@@ -494,6 +593,89 @@ def evaluate_or_fusion(
     """
     # gather all detections and annotations
     all_detections    = _get_detections_or_fusion(generator, model, score_threshold=score_threshold, max_detections=max_detections, save_path=save_path)
+    all_annotations    = _get_annotations(generator)
+    average_precisions = {}
+
+    # process detections and annotations
+    for label in range(generator.num_classes()):
+        false_positives = np.zeros((0,))
+        true_positives  = np.zeros((0,))
+        scores          = np.zeros((0,))
+        num_annotations = 0.0
+
+        for i in range(generator.size()):
+            detections          = all_detections[i][label]
+            annotations          = all_annotations[i][label]
+            num_annotations     += annotations.shape[0]
+            detected_annotations = []
+
+            for d in detections:
+                scores = np.append(scores, d[4])
+
+                if annotations.shape[0] == 0:
+                    false_positives = np.append(false_positives, 1)
+                    true_positives  = np.append(true_positives, 0)
+                    continue
+
+                overlaps            = compute_overlap(np.expand_dims(d, axis=0), annotations)
+                assigned_annotation = np.argmax(overlaps, axis=1)
+                max_overlap         = overlaps[0, assigned_annotation]
+
+                if max_overlap >= iou_threshold and assigned_annotation not in detected_annotations:
+                    false_positives = np.append(false_positives, 0)
+                    true_positives  = np.append(true_positives, 1)
+                    detected_annotations.append(assigned_annotation)
+                else:
+                    false_positives = np.append(false_positives, 1)
+                    true_positives  = np.append(true_positives, 0)
+
+        # no annotations -> AP for this class is 0 (is this correct?)
+        if num_annotations == 0:
+            average_precisions[label] = 0, 0
+            continue
+
+        # sort by score
+        indices         = np.argsort(-scores)
+        false_positives = false_positives[indices]
+        true_positives  = true_positives[indices]
+
+        # compute false positives and true positives
+        false_positives = np.cumsum(false_positives)
+        true_positives  = np.cumsum(true_positives)
+
+        # compute recall and precision
+        recall    = true_positives / num_annotations
+        precision = true_positives / np.maximum(true_positives + false_positives, np.finfo(np.float64).eps)
+
+
+        # compute average precision
+        average_precision  = _compute_ap(recall, precision)
+        average_precisions[label] = average_precision, num_annotations
+
+    return average_precisions
+
+def evaluate_and_fusion(
+    generator,
+    model,
+    iou_threshold=0.5,
+    score_threshold=0.05,
+    max_detections=100,
+    save_path=None
+):
+    """ Evaluate a given dataset using a given model.
+
+    # Arguments
+        generator       : The generator that represents the dataset to evaluate.
+        model           : The model to evaluate.
+        iou_threshold   : The threshold used to consider when a detection is positive or negative.
+        score_threshold : The score confidence threshold to use for detections.
+        max_detections  : The maximum number of detections to use per image.
+        save_path       : The path to save images with visualized detections to.
+    # Returns
+        A dict mapping class names to mAP scores.
+    """
+    # gather all detections and annotations
+    all_detections    = _get_detections_and_fusion(generator, model, score_threshold=score_threshold, max_detections=max_detections, save_path=save_path)
     all_annotations    = _get_annotations(generator)
     average_precisions = {}
 
