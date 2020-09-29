@@ -331,32 +331,32 @@ def _get_detections_and_fusion(generator, model, score_threshold=0.05, max_detec
         image_labels2     = labels2[0, indices2[scores_sort2]]
 
         # Initialize the detected boxes to the ones of first modality
-        image_boxes = image_boxes1
-        image_scores = image_scores1
-        image_labels = image_labels1
+        image_boxes = np.empty((0,4), dtype=float)
+        image_scores = np.empty((0,), dtype=float)
+        image_labels = np.empty((0,), dtype=int)
         for j in range(image_boxes1.shape[0]):
-            box1_temp = image_boxes1[j]
-            box_sup_temp_index = None
-            score_temp = image_scores[j]
+            IOU_temp = 0.0
+            index_temp = None
+            flag = 0
             for k in range(image_boxes2.shape[0]):
-                box2_temp = image_boxes2[k]
-                if intersection_over_union(box1_temp, box2_temp) > 0.89 and image_labels[j]==image_labels2[k]:
-                    if image_scores2[k] > score_temp:
-                        box_sup_temp_index = k
-                        score_temp = image_scores2[k]
-            if box_sup_temp_index is not None:
-                image_boxes[j] = image_boxes2[box_sup_temp_index]
-                image_scores[j] = image_scores2[box_sup_temp_index]
+                if intersection_over_union(image_boxes1[j], image_boxes2[k]) > 0.51 and image_labels1[j]==image_labels2[k] and intersection_over_union(image_boxes1[j], image_boxes2[k]) > IOU_temp:
+                    IOU_temp = intersection_over_union(image_boxes1[j], image_boxes2[k])
+                    if image_scores2[k] > image_scores1[j]:
+                        index_temp = k
+                        flag = 2
+                    else:
+                        index_temp = j
+                        flag = 1
 
-        for l in range(image_boxes2.shape[0]):
-            flag = 1
-            for m in range(image_boxes1.shape[0]):
-                if intersection_over_union(image_boxes2[l],image_boxes1[m]) >= 0.05 or image_scores2[l] <= 0.05:
-                    flag = 0
-            if flag ==1:
-                image_boxes = np.append(image_boxes, [image_boxes2[l]], axis=0)
-                image_scores = np.append(image_scores, [image_scores2[l]], axis=0)
-                image_labels = np.append(image_labels, [image_labels2[l]], axis=0)
+            if index_temp is not None:
+                if flag == 2:
+                    image_boxes = np.append(image_boxes, [image_boxes2[index_temp]], axis=0)
+                    image_scores = np.append(image_scores, [image_scores2[index_temp]], axis=0)
+                    image_labels = np.append(image_labels, [image_labels2[index_temp]], axis=0)
+                elif flag == 1:
+                    image_boxes = np.append(image_boxes, [image_boxes1[index_temp]], axis=0)
+                    image_scores = np.append(image_scores, [image_scores1[index_temp]], axis=0)
+                    image_labels = np.append(image_labels, [image_labels1[index_temp]], axis=0)
 
         # select detections
         image_detections = np.concatenate([image_boxes, np.expand_dims(image_scores, axis=1), np.expand_dims(image_labels, axis=1)], axis=1)
