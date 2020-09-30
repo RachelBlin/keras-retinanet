@@ -35,7 +35,7 @@ from ..preprocessing.pascal_voc_fusion import PascalVocGeneratorF
 from ..preprocessing.pascal_voc_multimodal import PascalVocGeneratorM
 from ..preprocessing.pascal_voc_early_fusion import PascalVocGeneratorEF
 from ..preprocessing.pascal_voc_late_fusion import PascalVocGeneratorLF
-from ..utils.eval import evaluate, evaluate_fusion, evaluate_or_fusion, evaluate_and_fusion
+from ..utils.eval import evaluate, evaluate_fusion, evaluate_or_fusion, evaluate_and_fusion, evaluate_or_fusion_multimodal
 from ..utils.keras_version import check_keras_version
 
 
@@ -176,6 +176,7 @@ def parse_args(args):
     parser.add_argument('--weighted-average',   help='Compute the mAP using the weighted average of precisions among classes.', action='store_true')
 
     parser.add_argument('--model2', help='Path to RetinaNet model 2.')
+    parser.add_argument('--model-multimodal', help='Path to RetinaNet model 2.')
     parser.add_argument('--filter-style', help='Define the final filtering style', default='soft-nms')
     parser.add_argument('--backbone2', help='The backbone of the model.', default='resnet50')
     parser.add_argument('--gpu2', help='Id of the GPU to use (as reported by nvidia-smi).')
@@ -287,6 +288,71 @@ def main(args=None):
         else:
             print('mAP: {:.4f}'.format(sum(precisions) / sum(x > 0 for x in total_instances)))
 
+    elif args.model_multimodal:
+        print('Loading model multimodal fusion, this may take a second...')
+        if args.filter_style == 'soft-nms':
+            model = models.load_model_fusion(args.model, args.model_multimodal)
+
+            average_precisions = evaluate_fusion(
+                generator,
+                model,
+                iou_threshold=args.iou_threshold,
+                score_threshold=args.score_threshold,
+                max_detections=args.max_detections,
+                save_path=args.save_path
+            )
+        elif args.filter_style == 'naive-fusion':
+            model = models.load_model_naive_fusion(args.model, args.model_multimodal)
+
+            average_precisions = evaluate_fusion(
+                generator,
+                model,
+                iou_threshold=args.iou_threshold,
+                score_threshold=args.score_threshold,
+                max_detections=args.max_detections,
+                save_path=args.save_path
+            )
+        elif args.filter_style == 'or-filter':
+            model = models.load_model_or_fusion(args.model, args.model_multimodal)
+
+            average_precisions = evaluate_or_fusion_multimodal(
+                generator,
+                model,
+                iou_threshold=args.iou_threshold,
+                score_threshold=args.score_threshold,
+                max_detections=args.max_detections,
+                save_path=args.save_path
+            )
+        elif args.filter_style == 'and-filter':
+            model = models.load_model_or_fusion(args.model, args.model_multimodal)
+
+            average_precisions = evaluate_and_fusion(
+                generator,
+                model,
+                iou_threshold=args.iou_threshold,
+                score_threshold=args.score_threshold,
+                max_detections=args.max_detections,
+                save_path=args.save_path
+            )
+
+        # print evaluation
+        total_instances = []
+        precisions = []
+        for label, (average_precision, num_annotations) in average_precisions.items():
+            print('{:.0f} instances of class'.format(num_annotations),
+                  generator.label_to_name(label), 'with average precision: {:.4f}'.format(average_precision))
+            total_instances.append(num_annotations)
+            precisions.append(average_precision)
+
+        if sum(total_instances) == 0:
+            print('No test instances found.')
+            return
+
+        if args.weighted_average:
+            print(
+                'mAP: {:.4f}'.format(sum([a * b for a, b in zip(total_instances, precisions)]) / sum(total_instances)))
+        else:
+            print('mAP: {:.4f}'.format(sum(precisions) / sum(x > 0 for x in total_instances)))
     else:
         print('Loading model, this may take a second...')
         model = models.load_model(args.model, backbone_name=args.backbone, convert=args.convert_model)
