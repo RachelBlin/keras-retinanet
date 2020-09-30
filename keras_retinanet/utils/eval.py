@@ -339,7 +339,7 @@ def _get_detections_and_fusion(generator, model, score_threshold=0.05, max_detec
             index_temp = None
             flag = 0
             for k in range(image_boxes2.shape[0]):
-                if intersection_over_union(image_boxes1[j], image_boxes2[k]) > 0.51 and image_labels1[j]==image_labels2[k] and intersection_over_union(image_boxes1[j], image_boxes2[k]) > IOU_temp:
+                if intersection_over_union(image_boxes1[j], image_boxes2[k]) > 0.55 and image_labels1[j]==image_labels2[k] and intersection_over_union(image_boxes1[j], image_boxes2[k]) > IOU_temp:
                     IOU_temp = intersection_over_union(image_boxes1[j], image_boxes2[k])
                     if image_scores2[k] > image_scores1[j]:
                         index_temp = k
