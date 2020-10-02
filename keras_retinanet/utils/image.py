@@ -303,21 +303,27 @@ def resize_images(img, min_side=800, max_side=1333):
     Returns
         A resized image.
     """
-    (rows, cols, _) = img[0].shape
+    (rows1, cols1, _) = img[0].shape
+    (rows2, cols2, _) = img[1].shape
 
-    smallest_side = min(rows, cols)
+    smallest_side1 = min(rows1, cols1)
+    smallest_side2 = min(rows2, cols2)
 
     # rescale the image so the smallest side is min_side
-    scale = min_side / smallest_side
+    scale1 = min_side / smallest_side1
+    scale2 = min_side / smallest_side2
 
     # check if the largest side is now greater than max_side, which can happen
     # when images have a large aspect ratio
-    largest_side = max(rows, cols)
-    if largest_side * scale > max_side:
-        scale = max_side / largest_side
+    largest_side1 = max(rows1, cols1)
+    largest_side2 = max(rows2, cols2)
+    if largest_side1 * scale1 > max_side:
+        scale1 = max_side / largest_side1
+    if largest_side2 * scale2 > max_side:
+        scale2 = max_side / largest_side2
 
     # resize the image with the computed scale
-    img[0] = cv2.resize(img[0], None, fx=scale, fy=scale)
-    img[1] = cv2.resize(img[1], None, fx=scale, fy=scale)
+    img[0] = cv2.resize(img[0], None, fx=scale1, fy=scale1)
+    img[1] = cv2.resize(img[1], None, fx=scale2, fy=scale2)
 
-    return img, scale
+    return img, [scale1, scale2]
