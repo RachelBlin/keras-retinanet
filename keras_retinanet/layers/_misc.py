@@ -15,6 +15,7 @@ limitations under the License.
 """
 
 import keras
+import tensorflow as tf
 from .. import backend
 from ..utils import anchors as utils_anchors
 
@@ -181,6 +182,37 @@ class ClipBoxes(keras.layers.Layer):
         y2 = backend.clip_by_value(boxes[:, :, 3], 0, height)
 
         return keras.backend.stack([x1, y1, x2, y2], axis=2)
+
+    def compute_output_shape(self, input_shape):
+        return input_shape[1]
+
+class ClipBoxesMultimodal(keras.layers.Layer):
+    """ Keras layer to clip box values to lie inside a given shape.
+    """
+
+    def call(self, inputs, **kwargs):
+        image, boxes = inputs
+        shape = keras.backend.cast(keras.backend.shape(image), keras.backend.floatx())
+        if keras.backend.image_data_format() == 'channels_first':
+            height = shape[2]
+            width  = shape[3]
+        else:
+            height = shape[1]
+            width  = shape[2]
+        x1 = backend.clip_by_value(boxes[:, :, 0], 0, width)
+        y1 = backend.clip_by_value(boxes[:, :, 1], 0, height)
+        x2 = backend.clip_by_value(boxes[:, :, 2], 0, width)
+        y2 = backend.clip_by_value(boxes[:, :, 3], 0, height)
+        boxes = keras.backend.stack([x1, y1, x2, y2], axis=2)
+        scale_mod2 = 800 / 557
+        scale_mod1 = 800 / 500
+        boxes_rs = boxes / scale_mod2
+        boxes_align = tf.math.maximum(tf.constant([0., 0., 0., 0.]), tf.math.minimum(
+        tf.math.multiply(boxes_rs, tf.constant([0.919, 1.04, 0.919, 1.04])) - tf.constant([15.4, 78, 15.4, 78]),
+        tf.constant([500., 500., 500., 500.])))
+        final_boxes = boxes_align*scale_mod1
+
+        return final_boxes
 
     def compute_output_shape(self, input_shape):
         return input_shape[1]

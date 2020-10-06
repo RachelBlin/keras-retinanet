@@ -294,6 +294,7 @@ def resize_image(img, min_side=800, max_side=1333):
     return img, scale
 
 def resize_images(img, min_side=800, max_side=1333):
+    #min_side = 800, max_side=1333
     """ Resize an image such that the size is constrained to min_side and max_side.
 
     Args

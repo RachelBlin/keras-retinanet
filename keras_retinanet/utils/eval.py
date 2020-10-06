@@ -258,7 +258,7 @@ def _get_detections_or_fusion(generator, model, score_threshold=0.05, max_detect
         for l in range(image_boxes2.shape[0]):
             flag = 1
             for m in range(image_boxes1.shape[0]):
-                if intersection_over_union(image_boxes2[l], image_boxes1[m]) >= 0.05 or image_scores2[l] <= 0.05:
+                if intersection_over_union(image_boxes2[l], image_boxes1[m]) >= 0.05 or image_scores2[l] <= 0.5:
                     flag = 0
             if flag == 1:
                 image_boxes = np.append(image_boxes, [image_boxes2[l]], axis=0)
@@ -374,8 +374,6 @@ def _get_detections_or_fusion_multimodal(generator, model, score_threshold=0.05,
                 image_boxes = np.append(image_boxes, [image_boxes2[l]], axis=0)
                 image_scores = np.append(image_scores, [image_scores2[l]], axis=0)
                 image_labels = np.append(image_labels, [image_labels2[l]], axis=0)
-                print(image_boxes2[l], image_scores2[l], image_labels2[l], i)
-                print("************************************************")
 
         # select detections
         image_detections = np.concatenate(

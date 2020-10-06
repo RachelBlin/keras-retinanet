@@ -291,7 +291,7 @@ def main(args=None):
     elif args.model_multimodal:
         print('Loading model multimodal fusion, this may take a second...')
         if args.filter_style == 'soft-nms':
-            model = models.load_model_fusion(args.model, args.model_multimodal)
+            model = models.load_model_multimodal_fusion(args.model, args.model_multimodal)
 
             average_precisions = evaluate_fusion(
                 generator,
@@ -302,7 +302,7 @@ def main(args=None):
                 save_path=args.save_path
             )
         elif args.filter_style == 'naive-fusion':
-            model = models.load_model_naive_fusion(args.model, args.model_multimodal)
+            model = models.load_model_naive_fusion_multimodal(args.model, args.model_multimodal)
 
             average_precisions = evaluate_fusion(
                 generator,
