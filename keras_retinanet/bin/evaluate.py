@@ -35,6 +35,8 @@ from ..preprocessing.pascal_voc_fusion import PascalVocGeneratorF
 from ..preprocessing.pascal_voc_multimodal import PascalVocGeneratorM
 from ..preprocessing.pascal_voc_early_fusion import PascalVocGeneratorEF
 from ..preprocessing.pascal_voc_late_fusion import PascalVocGeneratorLF
+from ..preprocessing.pascal_voc_entropy import PascalVocGeneratorEnt
+from ..preprocessing.pascal_voc_pyramid import PascalVocGeneratorP
 from ..utils.eval import evaluate, evaluate_fusion, evaluate_or_fusion, evaluate_and_fusion, evaluate_or_fusion_multimodal, evaluate_and_fusion_multimodal
 from ..utils.keras_version import check_keras_version
 
@@ -62,6 +64,15 @@ def create_generator(args):
         )
     elif args.dataset_type == 'pascal':
         validation_generator = PascalVocGenerator(
+            args.pascal_path,
+            args.test_path,
+            args.labels_test_dir,
+            'test',
+            image_min_side=args.image_min_side,
+            image_max_side=args.image_max_side
+        )
+    elif args.dataset_type == 'pascal-entropy':
+        validation_generator = PascalVocGeneratorEnt(
             args.pascal_path,
             args.test_path,
             args.labels_test_dir,
@@ -108,6 +119,16 @@ def create_generator(args):
             image_min_side=args.image_min_side,
             image_max_side=args.image_max_side
         )
+    elif args.dataset_type == 'pascal-pyramid':
+        validation_generator = PascalVocGeneratorP(
+            args.pascal_path,
+            args.test_path_1,
+            args.test_path_2,
+            args.labels_test_dir,
+            'test',
+            image_min_side=args.image_min_side,
+            image_max_side=args.image_max_side
+        )
     elif args.dataset_type == 'csv':
         validation_generator = CSVGenerator(
             args.annotations,
@@ -136,6 +157,11 @@ def parse_args(args):
     pascal_parser.add_argument('test_path', help='Path to test dataset')
     pascal_parser.add_argument('labels_test_dir', help='Path to labels dataset')
 
+    pascal_parser = subparsers.add_parser('pascal-entropy')
+    pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
+    pascal_parser.add_argument('test_path', help='Path to test dataset')
+    pascal_parser.add_argument('labels_test_dir', help='Path to labels dataset')
+
     pascal_parser = subparsers.add_parser('pascal-m')
     pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
     pascal_parser.add_argument('test_path', help='Path to test dataset')
@@ -154,6 +180,12 @@ def parse_args(args):
     pascal_parser.add_argument('labels_test_dir', help='Path to labels dataset')
 
     pascal_parser = subparsers.add_parser('pascal-late-fusion')
+    pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
+    pascal_parser.add_argument('test_path_1', help='Path to first test dataset')
+    pascal_parser.add_argument('test_path_2', help='Path to second test dataset')
+    pascal_parser.add_argument('labels_test_dir', help='Path to labels dataset')
+
+    pascal_parser = subparsers.add_parser('pascal-pyramid')
     pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
     pascal_parser.add_argument('test_path_1', help='Path to first test dataset')
     pascal_parser.add_argument('test_path_2', help='Path to second test dataset')

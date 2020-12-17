@@ -165,9 +165,9 @@ def detect_image_fusion(image_path1, image_path2, label_path, labels_to_names, m
 
     # preprocess image for network
     image1 = preprocess_image(image1)
-    image1, scale = resize_image(image1)
+    image1, scale1 = resize_image(image1)
     image2 = preprocess_image(image2)
-    image2, scale = resize_image(image2)
+    image2, scale2 = resize_image(image2)
 
     # process image
     start = time.time()
@@ -175,7 +175,7 @@ def detect_image_fusion(image_path1, image_path2, label_path, labels_to_names, m
     print("processing time: ", time.time() - start)
 
     # correct for image scale
-    boxes /= scale
+    boxes /= scale1
 
     # visualize detections
     for box, score, label in zip(boxes[0], scores[0], labels[0]):
@@ -237,38 +237,113 @@ def detect_image_or_filter_fusion_multimodal(image_path1, image_path2, label_pat
             boxes2[0][z][1] = np.maximum(0, np.minimum(boxes2[0][z][1] * 1.04 - 78, 500))
             boxes2[0][z][3] = np.maximum(0, np.minimum(boxes2[0][z][3] * 1.04 - 78, 500))
 
+    # select indices which have a score above the threshold
+    indices1 = np.where(scores1[0, :] > 0.05)[0]
+    indices2 = np.where(scores2[0, :] > 0.05)[0]
+
+    # select those scores
+    scores1 = scores1[0][indices1]
+    scores2 = scores2[0][indices2]
+
+    # find the order with which to sort the scores
+    scores_sort1 = np.argsort(-scores1)[:300]
+    scores_sort2 = np.argsort(-scores2)[:300]
+
+    image_boxes1 = boxes1[0, indices1[scores_sort1], :]
+    image_scores1 = scores1[scores_sort1]
+    image_labels1 = labels1[0, indices1[scores_sort1]]
+    image_boxes2 = boxes2[0, indices2[scores_sort2], :]
+    image_scores2 = scores2[scores_sort2]
+    image_labels2 = labels2[0, indices2[scores_sort2]]
+
+    # Initialize the detected boxes to the ones of first modality
+    image_boxes = image_boxes1
+    image_scores = image_scores1
+    image_labels = image_labels1
+    for j in range(image_boxes1.shape[0]):
+        box1_temp = image_boxes1[j]
+        box_sup_temp_index = None
+        score_temp = image_scores[j]
+        for k in range(image_boxes2.shape[0]):
+            box2_temp = image_boxes2[k]
+            if intersection_over_union(box1_temp, box2_temp) > 0.89 and image_labels[j] == image_labels2[k]:
+                if image_scores2[k] > score_temp:
+                    box_sup_temp_index = k
+                    score_temp = image_scores2[k]
+        if box_sup_temp_index is not None:
+            image_boxes[j] = image_boxes2[box_sup_temp_index]
+            image_scores[j] = image_scores2[box_sup_temp_index]
+
+    for l in range(image_boxes2.shape[0]):
+        flag = 1
+        for m in range(image_boxes1.shape[0]):
+            if intersection_over_union(image_boxes2[l], image_boxes1[m]) >= 0.05 or image_scores2[l] <= 0.5:
+                flag = 0
+        if flag == 1:
+            image_boxes = np.append(image_boxes, [image_boxes2[l]], axis=0)
+            image_scores = np.append(image_scores, [image_scores2[l]], axis=0)
+            image_labels = np.append(image_labels, [image_labels2[l]], axis=0)
+
+    print(image_boxes.shape)
     # visualize detections
-    for box, score, label in zip(boxes2[0], scores2[0], labels2[0]):
+    for box, score, label in zip(image_boxes, image_scores, image_labels):
+        # scores are sorted so we can break
+        if score >= 0.5:
+
+            #color = label_color(label)
+            color = label_color(label)
+
+            b = box.astype(int)
+            draw_box(draw, b, color=color)
+
+            caption = "{} {:.3f}".format(labels_to_names[label], score)
+            draw_caption(draw, b, caption)
+
+    """for box, score, label in zip(boxes1[0], scores1[0], labels1[0]):
         # scores are sorted so we can break
         if score < 0.5:
             break
 
-        color = label_color(label)
+        #color = label_color(label + 10)
+        color = label_color(1)
 
         b = box.astype(int)
         draw_box(draw, b, color=color)
 
         caption = "{} {:.3f}".format(labels_to_names[label], score)
-        draw_caption(draw, b, caption)
-        print(box)
-
-    for box, score, label in zip(boxes1[0], scores1[0], labels1[0]):
-        # scores are sorted so we can break
-        if score < 0.5:
-            break
-
-        color = label_color(label + 10)
-
-        b = box.astype(int)
-        draw_box(draw, b, color=color)
-
-        caption = "{} {:.3f}".format(labels_to_names[label], score)
-        draw_caption(draw, b, caption)
+        draw_caption(draw, b, caption)"""
 
     plt.figure(figsize=(15, 15))
     plt.axis('off')
     plt.imshow(draw)
     plt.show()
+
+def intersection_over_union(box1, box2):
+    # First verify if there is an intersection of the two bounding boxes
+    # For this
+
+    # First compute the coordinates of the intersection rectangle
+    x1 = max(box1[0], box2[0])
+    y1 = max(box1[1], box2[1])
+    x2 = min(box1[2], box2[2])
+    y2 = min(box1[3], box2[3])
+
+    if x2 < x1 or y2 < y1:
+        return 0.0
+
+    # Once we have the coordinates, compute the area of the intersection rectangle
+    intersection_rectangle = (x1 - x2) * (y1 - y2)
+
+    # Then compute the area of each of the two bounding boxes
+    box1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
+    box2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
+
+    # The intersection over union is computed as follows :
+    # area of intersection rectangle / (area of bbox 1 + area of bbox 2 - area of intersection reactangle)
+    iou = intersection_rectangle / float(box1 + box2 - intersection_rectangle)
+
+    # return the intersection over union value
+    return iou
 
 
 # use this environment flag to change which GPU to use
@@ -289,8 +364,13 @@ keras.backend.tensorflow_backend.set_session(get_session())
 #model_pauli = models.load_model(model_path, backbone_name='resnet50', convert=True)
 #model_intensities = models.load_model(model_path1, backbone_name='resnet50', convert=True)
 model_path1 = "/home/rblin/Documents/weights/Fusion/no_fusion/Resnet50/Polar/Intensities/resnet50_pascal_07.h5"
-model_path2 = "/home/rblin/Documents/weights/test_rename/resnet50_pascal_04.h5"
-model_fusion = models.load_model_or_fusion(model_path1, model_path2)
+model_path_rgb = "/home/rblin/Documents/weights/Fusion/no_fusion/Resnet50/RGB/RGB/resnet50_pascal_04.h5"
+model_path2 = "/home/rblin/Documents/weights/test_rename/RGB/resnet50_pascal_04.h5"
+model_rgb = models.load_model(model_path_rgb, backbone_name='resnet50', convert=True)
+model_intensities = models.load_model(model_path1, backbone_name='resnet50', convert=True)
+model_or_fusion = models.load_model_or_fusion(model_path1, model_path2)
+model_naive_fusion = models.load_model_naive_fusion_multimodal(model_path1, model_path2)
+model_double_soft_nms_fusion = models.load_model_multimodal_fusion(model_path1, model_path2)
 
 # if the model is not converted to an inference model, use the line below
 # see: https://github.com/fizyr/keras-retinanet#converting-a-training-model-to-inference-model
@@ -319,12 +399,18 @@ labels_to_names = {0: 'person', 1: 'bike', 2: 'car', 3: 'motorbike'}
 #image2 = "/home/rblin/Documents/Databases/PolarLITIS/mini_test_polar/PARAM_POLAR/RGB/frame7272.png"
 #label_path = "/home/rblin/Documents/Databases/PolarLITIS/mini_test_polar/LABELS_polar/3.xml"
 
-image1 = "/home/rblin/Documents/Databases/PolarLITIS/diverse_test_polar/PARAM_POLAR/I04590/58.png"
-image2 = "/home/rblin/Documents/Databases/PolarLITIS/diverse_test_polar/PARAM_POLAR/RGB/frame10789.png"
+image1 = "/home/rblin/Documents/Databases/PolarLITIS/test_polar/PARAM_POLAR/I04590/0058.png"
+image2 = "/home/rblin/Documents/Databases/PolarLITIS/test_rgb/RS/RGB/0058.png"
 
-label_path = "/home/rblin/Documents/Databases/PolarLITIS/mini_test_polar/LABELS_polar/58.xml"
+label_path = "/home/rblin/Documents/Databases/PolarLITIS/test_polar/LABELS_polar/0058.xml"
 
-detect_image_or_filter_fusion_multimodal(image1, image2, label_path, labels_to_names, model_fusion)
+detect_image(image2, label_path, labels_to_names, model_rgb)
+
+detect_image(image1, label_path, labels_to_names, model_intensities)
+
+detect_image_or_filter_fusion_multimodal(image1, image2, label_path, labels_to_names, model_or_fusion)
+detect_image_fusion(image1, image2, label_path, labels_to_names, model_naive_fusion)
+detect_image_fusion(image1, image2, label_path, labels_to_names, model_double_soft_nms_fusion)
 
 #detect_image(image2, label_path, labels_to_names, model_pauli)
 

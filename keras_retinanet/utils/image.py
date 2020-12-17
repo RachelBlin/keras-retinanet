@@ -20,9 +20,390 @@ import numpy as np
 import cv2
 from PIL import Image
 import imageio
+from scipy.signal import convolve2d
+from skimage.filters.rank import entropy
+from skimage.morphology import square
 
 from .transform import change_transform_origin
 
+def gaussian_pyramid(image, kernel, levels):
+    """
+    A function to create a Gaussian pyramid of a defined number of levels and from a chosen kernel.
+
+    :param image: The image we want to use of dimension (N,M,3) or (M,N)
+    :param kernel: The Gaussian kernel of dimention (k,k)
+    :param levels: The desired number of levels in the Gaussian pyramid, an integer
+    :return: The Gaussian pyramid, a list of numpy arrays
+    """
+
+    if len(np.shape(image)) == 3:
+        gauss_l_r = image[:, :, 0]
+        gauss_l_g = image[:, :, 1]
+        gauss_l_b = image[:, :, 2]
+    gauss_l = image
+    pyramid = [gauss_l]
+    for l in range(levels):
+        if len(np.shape(image)) == 3:
+            # channels last format
+            gauss_l_r = downsample(gauss_l_r, kernel)
+            gauss_l_g = downsample(gauss_l_g, kernel)
+            gauss_l_b = downsample(gauss_l_b, kernel)
+            gauss_l = np.zeros((gauss_l_b.shape[0], gauss_l_b.shape[1], 3))
+            gauss_l[:, :, 0] = gauss_l_r
+            gauss_l[:, :, 1] = gauss_l_g
+            gauss_l[:, :, 2] = gauss_l_b
+        else:
+            gauss_l = downsample(gauss_l, kernel)
+        pyramid.append(gauss_l)
+    return pyramid
+
+def laplacian_pyramid(image, kernel, levels):
+    """
+    A function to create a Laplacian pyramid of a defined number of levels and from a chosen kernel.
+
+    :param image: The image we want to use of dimension (N,M,3) or (M,N)
+    :param kernel: The Gaussian kernel of dimention (k,k)
+    :param levels: The desired number of levels in the Laplacian pyramid, an integer
+    :return: The Laplacian pyramid, a list of numpy arrays
+    """
+
+    gauss = gaussian_pyramid(image, kernel, levels)
+    pyramid = []
+    for l in range(len(gauss) - 2, -1, -1):
+        if len(np.shape(image)) == 3:
+            # channels last format
+            gauss_l1r = upsample(gauss[l+1][:, :, 0])
+            gauss_l1g = upsample(gauss[l+1][:, :, 1])
+            gauss_l1b = upsample(gauss[l+1][:, :, 2])
+            if gauss_l1r.shape[0] > gauss[l][:, :, 0].shape[0]:
+                gauss_l1r = np.delete(gauss_l1r, -1, axis=0)
+                gauss_l1g = np.delete(gauss_l1g, -1, axis=0)
+                gauss_l1b = np.delete(gauss_l1b, -1, axis=0)
+            if gauss_l1r.shape[1] > gauss[l][:, :, 0].shape[1]:
+                gauss_l1r = np.delete(gauss_l1r, -1, axis=1)
+                gauss_l1g = np.delete(gauss_l1g, -1, axis=1)
+                gauss_l1b = np.delete(gauss_l1b, -1, axis=1)
+            lap_l_r = gauss[l][:, :, 0] - gauss_l1r
+            lap_l_g = gauss[l][:, :, 1] - gauss_l1g
+            lap_l_b = gauss[l][:, :, 2] - gauss_l1b
+            lap_l = np.zeros((lap_l_r.shape[0], lap_l_r.shape[1], 3))
+            lap_l[:, :, 0] = lap_l_r
+            lap_l[:, :, 1] = lap_l_g
+            lap_l[:, :, 2] = lap_l_b
+        else:
+            gauss_l1 = upsample(gauss[l+1])
+            if gauss_l1.shape[0] > gauss[l].shape[0]:
+                gauss_l1 = np.delete(gauss_l1, -1, axis=0)
+            if gauss_l1.shape[1] > gauss[l].shape[1]:
+                gauss_l1 = np.delete(gauss_l1, -1, axis=1)
+            lap_l = gauss[l] - gauss_l1
+        pyramid.append(lap_l)
+    return pyramid
+
+def fused_laplacian_pyramid(gauss_pyramid_mod1, gauss_pyramid_mod2, lap_pyramid_mod1, lap_pyramid_mod2):
+    """
+    A funtion that builds a fused Laplacian pyramid of two modalities of the same image
+
+    :param gauss_pyramid_mod1: The Gaussian pyramid of modality 1, a list of grayscale images, the first one in highest resolution
+    :param gauss_pyramid_mod2: The Gaussian pyramid of modality 2, a list of grayscale images, the first one in highest resolution
+    :param lap_pyramid_mod1: The Laplacian pyramid of modality 1, a list of grayscale images, the last one in highest resolution
+    :param lap_pyramid_mod2: The Laplacian pyramid of modality 2, a list of grayscale images, the last one in highest resolution
+    :return: The fused Laplacian pyramid of two modalities, a list of grayscale images, the last one in highest resolution,
+    """
+
+    fused_laplacian = []
+    len_lap = len(lap_pyramid_mod1)
+    for l in range(len_lap):
+        fused_laplacian_temp = gauss_pyramid_mod1[len_lap-l-1]*lap_pyramid_mod1[l] + gauss_pyramid_mod2[len_lap-l-1]*lap_pyramid_mod2[l]
+        fused_laplacian.append(fused_laplacian_temp)
+    return fused_laplacian
+
+def collapse_pyramid(lap_pyramid, gauss_pyramid):
+    """
+    A function to collapse a Laplacian pyramid in order to recover the enhanced image
+
+    :param lap_pyramid: A Laplacian pyramid, a list of grayscale images, the last one in highest resolution
+    :param gauss_pyramid: A Gaussian pyramid, a list of grayscale images, the last one in lowest resolution
+    :return: A grayscale image
+    """
+
+    image = lap_pyramid[0]
+    if len(np.shape(image)) == 3:
+        im_r = upsample(gauss_pyramid[-1][:, :, 0])
+        im_g = upsample(gauss_pyramid[-1][:, :, 1])
+        im_b = upsample(gauss_pyramid[-1][:, :, 2])
+        if im_r.shape[0] > image.shape[0]:
+            im_r = np.delete(im_r, -1, axis=0)
+            im_g = np.delete(im_g, -1, axis=0)
+            im_b = np.delete(im_b, -1, axis=0)
+        if im_r.shape[1] > image.shape[1]:
+            im_r = np.delete(im_r, -1, axis=1)
+            im_g = np.delete(im_g, -1, axis=1)
+            im_b = np.delete(im_b, -1, axis=1)
+        gauss = np.zeros((im_r.shape[0], im_r.shape[1], 3))
+        gauss[:, :, 0] = im_r
+        gauss[:, :, 1] = im_g
+        gauss[:, :, 2] = im_b
+    else:
+        gauss = upsample(gauss_pyramid[-1])
+        if gauss.shape[0] > image.shape[0]:
+            gauss = np.delete(gauss, -1, axis=0)
+        if gauss.shape[1] > image.shape[1]:
+            gauss = np.delete(gauss, -1, axis=1)
+    image = image + gauss
+    for l in range(1,len(lap_pyramid),1):
+        if len(np.shape(image)) == 3:
+            im_r = upsample(image[:, :, 0])
+            im_g = upsample(image[:, :, 1])
+            im_b = upsample(image[:, :, 2])
+            if im_r.shape[0] > lap_pyramid[l].shape[0]:
+                im_r = np.delete(im_r, -1, axis=0)
+                im_g = np.delete(im_g, -1, axis=0)
+                im_b = np.delete(im_b, -1, axis=0)
+            if im_r.shape[1] > lap_pyramid[l].shape[1]:
+                im_r = np.delete(im_r, -1, axis=1)
+                im_g = np.delete(im_g, -1, axis=1)
+                im_b = np.delete(im_b, -1, axis=1)
+            pyr_upsampled = np.zeros((im_r.shape[0], im_r.shape[1], 3))
+            pyr_upsampled[:, :, 0] = im_r
+            pyr_upsampled[:, :, 1] = im_g
+            pyr_upsampled[:, :, 2] = im_b
+        else:
+            pyr_upsampled = upsample(image)
+            if pyr_upsampled.shape[0] > lap_pyramid[l].shape[0]:
+                pyr_upsampled = np.delete(pyr_upsampled, -1, axis=0)
+            if pyr_upsampled.shape[1] > lap_pyramid[l].shape[1]:
+                pyr_upsampled = np.delete(pyr_upsampled, -1, axis=1)
+        image = lap_pyramid[l] + pyr_upsampled
+    return image
+
+def convolve(image, kernel):
+    """
+    A fonction to perform a 2D convolution operation over an image using a chosen kernel.
+
+    :param image: The grayscale image we want to use of dimension (N,M)
+    :param kernel: The convolution kernel of dimention (k,k)
+    :return: The convolved image of dimension (N,M)
+    """
+    im_out = convolve2d(image, kernel, mode='same', boundary='symm')
+    return im_out
+
+def downsample(image, kernel):
+    """
+    A function to downsample an image.
+
+    :param image: The grayscale image we want to use of dimension (N,M)
+    :param kernel: The Gaussian blurring kernel of dimention (k,k)
+    :return: The downsampled image of dimension (N/factor,M/factor)
+    """
+    blur_image = convolve(image, kernel)
+    img_downsampled = blur_image[::2, ::2]
+    return img_downsampled
+
+def upsample(image):
+    """
+
+    :param image: The grayscale image we want to use of dimension (N,M)
+    :param factor: The upsampling factor, an integer
+    :return: The upsampled image of dimension (N*factor,M*factor)
+    """
+
+    #kernel = np.array([[1, 2, 1], [2, 4, 2], [1, 2, 1]])/12
+    kernel = smooth_gaussian_kernel(0.4)
+
+    img_upsampled = np.zeros((image.shape[0]*2, image.shape[1]*2), dtype=np.float64)
+    img_upsampled[::2, ::2] = image[:, :]
+    img_upsampled = 4 * convolve(img_upsampled, kernel)
+    return img_upsampled
+
+def classical_gaussian_kernel(k, sigma):
+    """
+    A function to generate a classical Gaussian kernel
+
+    :param k: The size of the kernel, an integer
+    :param sigma: variance of the gaussian distribution
+    :return: A Gaussian kernel, a numpy array of shape (k,k)
+    """
+    w = np.linspace(-(k - 1) / 2, (k - 1) / 2, k)
+    x, y = np.meshgrid(w, w)
+    kernel = 0.5*np.exp(-0.5*(x**2 + y**2)/(sigma**2))/(np.pi*sigma**2)
+    return kernel
+
+def smooth_gaussian_kernel(a):
+    """
+     A 5*5 gaussian kernel to perform smooth filtering.
+
+    :param a: the coefficient of the smooth filter. A float usually within [0.3, 0.6]
+    :return: A smoothing Gaussian kernel, a numpy array of shape (5,5)
+    """
+    w = np.array([0.25 - a/2.0, 0.25, a, 0.25, 0.25 - a/2.0])
+    kernel = np.outer(w, w)
+    return kernel
+
+def normalized_local_entropy(image, window_size):
+    """
+    A fonction that computes the local entropy given an image and a window size
+
+    :param image: The grayscale image
+    :param window_size: The size of the window that determines the neighbourhood of a pixel, an integer
+    :return: The local entropy of the image, a grayscale image
+    """
+
+    local_entropy = entropy(image, square(window_size))
+    return local_entropy
+
+def local_contrast(image, window_size):
+    """
+     A fonction that computes the local contrast given an image and a window size
+
+    :param image: The grayscale image
+    :param window_size: The size of the window that determines the neighbourhood of a pixel, an integer
+    :return: The local contrast of the image, a grayscale image
+    """
+
+    conv_filter = np.ones((window_size,window_size), dtype=int)
+    local_mean = convolve(image, conv_filter)/(window_size**2)
+    contrast = np.zeros((image.shape[0], image.shape[1]))
+    for x in range(image.shape[0]):
+        for y in range(image.shape[1]):
+            patch = image[max(0, x-int(window_size/2)):min(image.shape[0], x+int(window_size/2)), max(0, y-int(window_size/2)):min(image.shape[1], y+int(window_size/2))]
+            patch = np.square(patch - local_mean[x,y])
+            contrast[x,y] = np.sqrt(np.sum(patch)/(window_size**2))
+    return contrast
+
+def exposedness(image, sigma=0.2):
+    """
+    A fonction that computes the exposedness
+
+    :param image:  The grayscale image
+    :param sigma: A float, it is recommanded to set this value to 0.2
+    :return: The exposedness of the image, a grayscale image.
+    """
+
+    exposedness = np.exp(-np.square(image - 0.5)/(2*sigma**2))
+    return exposedness
+
+def visibility(image, kernel1, kernel2):
+    """
+    A fonction that computes the visibility of an image given an image and two gaussian kernel
+
+    :param image: The grayscale image
+    :param kernel1: The gaussian kernel to compute the blurred image
+    :param kernel2: The gaussian kernel to perform the final step of the visibility
+    :return: The visibility, a grayscale image
+    """
+
+    img_blur = convolve(image, kernel1)
+    visibility = np.sqrt(convolve(np.square(image - img_blur), kernel2))
+    return visibility
+
+def weight_combination(entropy, contrast, visibility, alpha1, alpha2, alpha3):
+    """
+    Combining the entropy, the contrast and the visibility to build a weight layer
+
+    :param entropy: The local entropy of the image, a grayscale image
+    :param contrast: The local contrast of the image, a grayscale image
+    :param visibility: The visibility of the image, a grayscale image
+    :param alpha1: The weight of the local entropy, a float within [0, 1]
+    :param alpha2: The weight of the local contrast, a float within [0, 1]
+    :param alpha3: The weight of the visibility, a float within [0, 1]
+    :return: Weight map of the image, a grayscale image
+    """
+
+    weight = entropy**alpha1 * contrast**alpha2 * visibility**alpha3
+    return weight
+
+def weight_normalization(weight1, weight2):
+    """
+    A function to normalize the weights of each modality so the weights' sum is 1 for each pixel of the image
+
+    :param weght1: The weight of madality 1, a grayscale image
+    :param weight2: The weight of modality 2, a grayscale image
+    :return: Two weights, weight1_normalized and weight2_normalized, respectively the normalized versions of weight1 and weight2, two grayscale images.
+    """
+
+    weight1_normalized = weight1 / (weight1 + weight2)
+    weight2_normalized = weight2 / (weight1 + weight2)
+    return weight1_normalized, weight2_normalized
+
+def convert_image_to_floats(image):
+    """
+    A function to convert an image to a numpy array of floats within [0, 1]
+
+    :param image: The image to be converted
+    :return: The converted image
+    """
+
+    if np.max(image) <= 1.0:
+        return image
+    else:
+        return image / 255.0
+
+def pyramid_fusion(im_intensities, im_dop):
+    im_intensities = cv2.imread(im_intensities)
+    im_dop = cv2.imread(im_dop)
+    kernel = smooth_gaussian_kernel(0.4)
+    levels = 4
+    window_size = 5
+
+    im_mod1 = convert_image_to_floats(im_intensities[:, :, 2])
+    im_mod2 = convert_image_to_floats(im_dop[:, :, 1])
+
+    # kernels to compute visibility
+    kernel1 = classical_gaussian_kernel(5, 2)
+    kernel2 = classical_gaussian_kernel(5, 2)
+
+    # Computation of local entropy, local contrast and visibility for value channel
+    local_entropy_mod1 = normalized_local_entropy(im_mod1, window_size)
+    #local_contrast_mod1 = local_contrast(im_mod1, window_size)
+    visibility_mod1 = visibility(im_mod1, kernel1, kernel2)
+    exposedness_mod1 = exposedness(im_mod1)
+    # Combination of local entropy, local contrast and visibility for value channel
+    weight_mod1 = weight_combination(local_entropy_mod1, exposedness_mod1, visibility_mod1, 1, 1, 1)
+
+    # Computation of local entropy, local contrast and visibility for value channel
+    local_entropy_mod2 = normalized_local_entropy(im_mod2, window_size)
+    #local_contrast_mod2 = local_contrast(im_mod2, window_size)
+    exposedness_mod2 = exposedness(im_mod2)
+    visibility_mod2 = visibility(im_mod2, kernel1, kernel2)
+    # Combination of local entropy, local contrast and visibility for value channel
+    weight_mod2 = weight_combination(local_entropy_mod2, exposedness_mod2, visibility_mod2, 1, 1, 1)
+
+    # Normalising weights of value channel and IR image
+    weightN_mod1, weightN_mod2 = weight_normalization(weight_mod1, weight_mod2)
+
+    # Creating Gaussian pyramids of the weights maps of respectively the value channel and IR image
+    gauss_pyr_mod1_weights = gaussian_pyramid(weightN_mod1, kernel, levels)
+    gauss_pyr_mod2_weights = gaussian_pyramid(weightN_mod2, kernel, levels)
+
+    # Creating Laplacian pyramids of respectively the value channel and IR image
+    lap_pyr_mod1 = laplacian_pyramid(im_mod1, kernel, levels)
+    lap_pyr_mod2 = laplacian_pyramid(im_mod2, kernel, levels)
+
+    # Creating the fused Laplacian of the two modalities
+    lap_pyr_fusion = fused_laplacian_pyramid(gauss_pyr_mod1_weights, gauss_pyr_mod2_weights, lap_pyr_mod1, lap_pyr_mod2)
+
+    # Creating the Gaussian pyramid of value channel in order to collapse the fused Laplacian pyramid
+    gauss_pyr_mod1 = gaussian_pyramid(im_mod1, kernel, levels)
+    collapsed_image = collapse_pyramid(lap_pyr_fusion, gauss_pyr_mod1)
+
+    im_intensities[:, :, 2] = collapsed_image
+
+    return im_intensities[:, :, ::-1].copy()
+
+def read_image_entropy(path):
+    image = cv2.imread(path)
+    window_size = 5
+    ent_ch1 = normalized_local_entropy(image[:, :, 0], window_size)
+    ent_ch2 = normalized_local_entropy(image[:, :, 1], window_size)
+    ent_ch3 = normalized_local_entropy(image[:, :, 2], window_size)
+
+    entropy_image = image.copy()
+    entropy_image[:, :, 0] = ent_ch1
+    entropy_image[:, :, 1] = ent_ch2
+    entropy_image[:, :, 2] = ent_ch3
+
+    return entropy_image[:, :, ::-1].copy()
 
 def read_image_bgr(path):
     """ Read an image in BGR format.

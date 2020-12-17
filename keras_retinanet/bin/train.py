@@ -45,6 +45,8 @@ from ..preprocessing.open_images import OpenImagesGenerator
 from ..preprocessing.pascal_voc import PascalVocGenerator
 from ..preprocessing.pascal_voc_fusion import PascalVocGeneratorF
 from ..preprocessing.pascal_voc_multimodal import PascalVocGeneratorM
+from ..preprocessing.pascal_voc_pyramid import PascalVocGeneratorP
+from ..preprocessing.pascal_voc_entropy import PascalVocGeneratorEnt
 from ..utils.anchors import make_shapes_callback
 from ..utils.keras_version import check_keras_version
 from ..utils.model import freeze as freeze_model
@@ -263,6 +265,23 @@ def create_generators(args, preprocess_image):
             'validation',
             **common_args
         )
+    elif args.dataset_type == 'pascal-entropy':
+        train_generator = PascalVocGeneratorEnt(
+            args.pascal_path,
+            args.train_path,
+            args.labels_train_dir,
+            'trainval',
+            transform_generator=transform_generator,
+            **common_args
+        )
+
+        validation_generator = PascalVocGeneratorEnt(
+            args.pascal_path,
+            args.val_path,
+            args.labels_val_dir,
+            'validation',
+            **common_args
+        )
     elif args.dataset_type == 'pascal-m':
         train_generator = PascalVocGeneratorF(
             args.pascal_path,
@@ -295,6 +314,25 @@ def create_generators(args, preprocess_image):
             args.pascal_path,
             args.val_path_rgb,
             args.val_path_polar,
+            args.labels_val_dir,
+            'validation',
+            **common_args
+        )
+    elif args.dataset_type == 'pascal-pyramid':
+        train_generator = PascalVocGeneratorP(
+            args.pascal_path,
+            args.train_path_intensities,
+            args.train_path_dop,
+            args.labels_train_dir,
+            'trainval',
+            transform_generator=transform_generator,
+            **common_args
+        )
+
+        validation_generator = PascalVocGeneratorP(
+            args.pascal_path,
+            args.val_path_intensities,
+            args.val_path_dop,
             args.labels_val_dir,
             'validation',
             **common_args
@@ -401,6 +439,24 @@ def parse_args(args):
     pascal_parser.add_argument('train_path', help='Path to train directory (ie. /train/PARAM_POLAR_TEMP/RetinaNet_Stokes).')
     pascal_parser.add_argument('labels_train_dir', help='Pat:wqh to labels directory')
     pascal_parser.add_argument('val_path', help='Path to validation directory.')
+    pascal_parser.add_argument('labels_val_dir', help='Path to labels directory')
+
+    pascal_parser = subparsers.add_parser('pascal-entropy')
+    pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
+    pascal_parser.add_argument('train_path', help='Path to train directory (ie. /train/PARAM_POLAR_TEMP/RetinaNet_Stokes).')
+    pascal_parser.add_argument('labels_train_dir', help='Pat:wqh to labels directory')
+    pascal_parser.add_argument('val_path', help='Path to validation directory.')
+    pascal_parser.add_argument('labels_val_dir', help='Path to labels directory')
+
+    pascal_parser = subparsers.add_parser('pascal-pyramid')
+    pascal_parser.add_argument('pascal_path', help='Path to dataset directory (ie. /tmp/VOCdevkit).')
+    pascal_parser.add_argument('train_path_intensities',
+                               help='Path to train directory (ie. /train/PARAM_POLAR_TEMP/RetinaNet_Stokes).')
+    pascal_parser.add_argument('train_path_dop',
+                               help='Path to train directory (ie. /train/PARAM_POLAR_TEMP/RetinaNet_Stokes).')
+    pascal_parser.add_argument('labels_train_dir', help='Pat:wqh to labels directory')
+    pascal_parser.add_argument('val_path_intensities', help='Path to validation directory.')
+    pascal_parser.add_argument('val_path_dop', help='Path to validation directory.')
     pascal_parser.add_argument('labels_val_dir', help='Path to labels directory')
 
     pascal_parser = subparsers.add_parser('pascal-m')
